@@ -1,0 +1,71 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: ding-postgres-dev
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    networks:
+      - ding-dev-network
+
+  app:
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: ding-app-dev
+    restart: always
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+    networks:
+      - ding-dev-network
+    stdin_open: true
+    tty: true
+    # Generate Prisma client and start in development mode
+    command: sh -c "pnpm prisma generate && pnpm run start:dev"
+
+  prisma-studio:
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: ding-prisma-studio-dev
+    restart: always
+    ports:
+      - "5555:5555"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+    networks:
+      - ding-dev-network
+    command: sh -c "pnpm prisma generate && npx prisma studio --hostname 0.0.0.0 --port 5555"
+
+
+volumes:
+  pgdata_dev:
+
+networks:
+  ding-dev-network:
+    driver: bridge
