@@ -24,7 +24,7 @@ services:
     container_name: ding-app-dev
     restart: always
     ports:
-      - "4000:4000"
+      - "3000:3000"
     env_file:
       - .env
     environment:

@@ -18,7 +18,7 @@ COPY . .
 RUN pnpm prisma generate
 
 # Expose port
-EXPOSE 4000
+EXPOSE 3000
 
 # Start in development mode with hot reloading
 CMD ["pnpm", "run", "start:dev"]
