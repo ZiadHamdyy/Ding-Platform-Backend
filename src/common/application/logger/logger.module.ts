@@ -1,7 +1,7 @@
 import pino from 'pino';
 import * as fs from 'fs';
 import * as path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { Module, Global } from '@nestjs/common';
 import { createWriteStream } from 'pino-sentry';
@@ -40,7 +40,7 @@ import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
               },
               useLevel:
                 config.get('NODE_ENV') !== 'production' ? 'debug' : 'info',
-              genReqId: (req) => req.id || uuidv4(),
+              genReqId: (req) => req.id || randomUUID(),
               autoLogging: false,
               ...(config.get('NODE_ENV') === 'production' && {
                 logger: pino(

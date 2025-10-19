@@ -1,7 +1,5 @@
-import { get } from 'env-var';
-import * as bcrypt from 'bcryptjs';
-import * as jwt from 'jsonwebtoken';
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../user/user.service';
 import { SignupRequest } from './dtos/request/signup.request';
 import { TokenPayload } from '../../common/types/auth-token-payload.type';
@@ -9,6 +7,7 @@ import { HelperService } from '../../common/utils/helper/helper.service';
 import { DatabaseService } from '../../configs/database/database.service';
 import { Session, User } from '@prisma/client';
 import { GenericHttpException } from '../../common/application/exceptions/generic-http-exception';
+import { ERROR_MESSAGES } from '../../common/constants/error-messages.constant';
 
 @Injectable()
 export class AuthService {
@@ -16,6 +15,7 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly helperService: HelperService,
     private readonly prisma: DatabaseService,
+    private readonly jwtService: JwtService,
   ) {}
 
   async signup(request: SignupRequest) {
@@ -37,15 +37,32 @@ export class AuthService {
   }
 
   async validateUser(email: string, password: string) {
-    const user = await this.userService.getLoginUserOrError({
-      email,
+    // Find user without throwing errors to prevent info leakage
+    const user = await this.prisma.user.findUnique({
+      where: { email },
     });
-    if (!user.password)
+
+    // Return generic error for all cases: not found, inactive, no password, wrong password
+    if (!user || !user.active || !user.password) {
       throw new GenericHttpException(
-        'No password found',
-        HttpStatus.BAD_REQUEST,
+        ERROR_MESSAGES.INVALID_CREDENTIALS,
+        HttpStatus.UNAUTHORIZED,
       );
-    await this.matchPassword(password, user.password);
+    }
+
+    // Verify password
+    const isPasswordValid = await this.helperService.comparePassword(
+      password,
+      user.password,
+    );
+
+    if (!isPasswordValid) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.INVALID_CREDENTIALS,
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
     return user;
   }
 
@@ -59,23 +76,12 @@ export class AuthService {
     };
   }
 
-  private async matchPassword(password: string, hash: string) {
-    const isMatched = await bcrypt.compare(password, hash);
-    if (!isMatched) {
-      throw new GenericHttpException(
-        'Invalid email or password',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-  }
-
   private generateAuthToken(
     payload: TokenPayload,
     isTemporary = false,
   ): string {
-    return jwt.sign(payload, get('JWT_SECRET').required().asString(), {
-      algorithm: 'HS256',
-      ...(isTemporary && { expiresIn: 30 * 60 }),
+    return this.jwtService.sign(payload, {
+      ...(isTemporary && { expiresIn: '30m' }),
     });
   }
 
@@ -98,9 +104,8 @@ export class AuthService {
         message: 'Logged out successfully',
       };
     } catch (error) {
-      console.error('Logout error:', error);
       throw new GenericHttpException(
-        'Failed to logout',
+        ERROR_MESSAGES.LOGOUT_FAILED,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

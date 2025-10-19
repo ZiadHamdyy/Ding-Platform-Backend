@@ -32,9 +32,8 @@ export class AuthController {
 
   @Post('signup')
   @Serialize(UserResponse)
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.CREATED)
   async signup(@Body() signupRequest: SignupRequest) {
-    console.log(signupRequest);
     return await this.authService.signup(signupRequest);
   }
 
@@ -42,8 +41,12 @@ export class AuthController {
   @Serialize(AuthResponse)
   @HttpCode(HttpStatus.OK)
   @UseGuards(LocalAuthGuard)
-  async login(@Body() _: LoginRequest, @currentUser() user: currentUserType, @clientIp() ipAddress: string, @userAgent() userAgent: string) {
-    if (!user.emailVerified) return { user };
+  async login(
+    @Body() _: LoginRequest,
+    @currentUser() user: currentUserType,
+    @clientIp() ipAddress: string,
+    @userAgent() userAgent: string,
+  ) {
     const session = await this.sessionService.create(user, ipAddress, userAgent);
     return await this.authService.appendAuthTokenToResponse(user, session);
   }

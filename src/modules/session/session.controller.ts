@@ -1,27 +1,36 @@
 import {
   Controller,
   Get,
-  Body,
   Delete,
+  Param,
   HttpCode,
   HttpStatus,
-  Param,
+  UseGuards,
 } from '@nestjs/common';
 import { SessionService } from './session.service';
-import { TerminateSessionRequest } from './dto/request/terminate-session.request';
-import { Session } from '@prisma/client';
+import { JwtAuthenticationGuard } from '../../common/guards/strategy.guards/jwt.guard';
+import { currentUser } from '../../common/decorators/currentUser.decorator';
+import type { currentUserType } from '../../common/types/current-user.type';
+import { Serialize } from '../../common/interceptors/serialize.interceptor';
+import {
+  SessionListResponse,
+  SessionInfo,
+} from './dto/responses/session-list.response';
 
 @Controller('sessions')
 export class SessionController {
   constructor(private readonly sessionService: SessionService) {}
 
   @Get()
+  @UseGuards(JwtAuthenticationGuard)
+  @Serialize(SessionListResponse, SessionInfo)
   @HttpCode(HttpStatus.OK)
-  async getAllSessions(@Param('userId') userId: string) {
+  async getAllSessions(@currentUser() user: currentUserType) {
     const sessions = await this.sessionService.getAllUserSessions(
-      userId,
+      user.id,
+      user.session?.id,
     );
-    const meta = await this.sessionService.getSessionCount(userId);
+    const meta = await this.sessionService.getSessionCount(user.id);
 
     return {
       success: true,
@@ -31,36 +40,14 @@ export class SessionController {
     };
   }
 
-  @Delete()
-  @HttpCode(HttpStatus.OK)
-  async removeCurrentSession(@Param('sessionId') sessionId: string) {
-    await this.sessionService.remove({ id: sessionId } as Session);
-    return {
-      success: true,
-      message: 'Current session terminated successfully',
-    };
-  }
-
-  @Delete('all')
-  @HttpCode(HttpStatus.OK)
-  async removeAllSessions(@Param('userId') userId: string) {
-    await this.sessionService.terminateAllSessions(userId);
-    return {
-      success: true,
-      message: 'All sessions terminated successfully',
-    };
-  }
-
-  @Delete('terminate')
+  @Delete(':sessionId')
+  @UseGuards(JwtAuthenticationGuard)
   @HttpCode(HttpStatus.OK)
   async terminateSession(
-    @Param('userId') userId: string,
-    @Body() terminateSessionRequest: TerminateSessionRequest,
+    @currentUser() user: currentUserType,
+    @Param('sessionId') sessionId: string,
   ) {
-    await this.sessionService.terminateSession(
-      terminateSessionRequest.sessionId,
-      userId,
-    );
+    await this.sessionService.terminateSession(sessionId, user.id);
     return {
       success: true,
       message: 'Session terminated successfully',

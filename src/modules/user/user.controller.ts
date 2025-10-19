@@ -18,15 +18,16 @@ import {
   UserResponse,
 } from './dtos/response/user.response';
 import { CheckEmailResponse } from './dtos/response/check-email.response';
-import {
-  UserEmailInput,
-  UserListFilterInput,
-} from './dtos/request/user-filter.input';
+import { UserListFilterInput } from './dtos/request/user-filter.input';
 import { CheckEmailRequest } from './dtos/request/check-email.request';
 import { CreateUserRequest } from './dtos/request/create-user.request';
 import { ToggleUserActivityRequest } from './dtos/request/toggle-user-activity.request';
+import { JwtAuthenticationGuard } from '../../common/guards/strategy.guards/jwt.guard';
+import { currentUser } from '../../common/decorators/currentUser.decorator';
+import type { currentUserType } from '../../common/types/current-user.type';
 
 @Controller('users')
+@UseGuards(JwtAuthenticationGuard) // Protect all endpoints by default
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
@@ -42,21 +43,21 @@ export class UserController {
     return await this.userService.createUser(data);
   }
 
-  @Get(':email')
+  @Get('by-email')
   @Serialize(UserIdResponse)
-  async getUserIdByEmail(@Param('email') email: string) {
+  async getUserIdByEmail(@Query('email') email: string) {
     return await this.userService.getVerifiedUserIdByEmail(email);
   }
 
-
-  @Patch('toggle-activity')
+  @Patch(':id/toggle-activity')
   @HttpCode(HttpStatus.OK)
   @Serialize(UserResponse)
   async toggleUserActivity(
     @Param('id') userId: string,
     @Body() data: ToggleUserActivityRequest,
+    @currentUser() currentUser: currentUserType,
   ) {
-    return await this.userService.toggleUserActivity(data, userId);
+    return await this.userService.toggleUserActivity(data, userId, currentUser.id);
   }
 
   @Delete(':id')

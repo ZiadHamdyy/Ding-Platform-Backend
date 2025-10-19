@@ -6,6 +6,7 @@ import { CreateUserRequest } from './dtos/request/create-user.request';
 import { ToggleUserActivityRequest } from './dtos/request/toggle-user-activity.request';
 import { UserListFilterInput } from './dtos/request/user-filter.input';
 import { HelperService } from '../../common/utils/helper/helper.service';
+import { ERROR_MESSAGES } from '../../common/constants/error-messages.constant';
 
 @Injectable()
 export class UserService {
@@ -92,8 +93,8 @@ export class UserService {
       },
     });
     if (!user)
-      throw GenericHttpException.createLocalized(
-        'USER_NOT_FOUND',
+      throw new GenericHttpException(
+        ERROR_MESSAGES.USER_NOT_FOUND,
         HttpStatus.NOT_FOUND,
       );
     return { id: user.id };
@@ -110,13 +111,13 @@ export class UserService {
       },
     });
     if (!user)
-      throw GenericHttpException.createLocalized(
-        'USER_NOT_FOUND',
+      throw new GenericHttpException(
+        ERROR_MESSAGES.USER_NOT_FOUND,
         HttpStatus.NOT_FOUND,
       );
     if (!user.active)
-      throw GenericHttpException.createLocalized(
-        'USER_BLOCKED',
+      throw new GenericHttpException(
+        ERROR_MESSAGES.USER_BLOCKED,
         HttpStatus.FORBIDDEN,
       );
     return user;
@@ -124,32 +125,33 @@ export class UserService {
 
   async toggleUserActivity(
     data: ToggleUserActivityRequest,
+    userId: string,
     currentUserId: string,
   ) {
     // Check if user exists
     const existingUser = await this.prisma.user.findFirst({
       where: {
-        id: data.userId,
+        id: userId,
       },
     });
 
     if (!existingUser) {
-      throw GenericHttpException.createLocalized(
-        'USER_NOT_FOUND',
+      throw new GenericHttpException(
+        ERROR_MESSAGES.USER_NOT_FOUND,
         HttpStatus.NOT_FOUND,
       );
     }
 
     // Prevent users from deactivating themselves
-    if (data.userId === currentUserId) {
-      throw GenericHttpException.createLocalized(
-        'CANNOT_DEACTIVATE_OWN_ACCOUNT',
+    if (userId === currentUserId) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.CANNOT_DEACTIVATE_OWN_ACCOUNT,
         HttpStatus.BAD_REQUEST,
       );
     }
 
     const user = await this.prisma.user.update({
-      where: { id: data.userId },
+      where: { id: userId },
       data: { active: data.active },
     });
     return user;
@@ -169,8 +171,8 @@ export class UserService {
     });
 
     if (!existingUser) {
-      throw GenericHttpException.createLocalized(
-        'USER_NOT_FOUND',
+      throw new GenericHttpException(
+        ERROR_MESSAGES.USER_NOT_FOUND,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -194,14 +196,10 @@ export class UserService {
       where: { email },
     });
     if (user)
-      throw GenericHttpException.createLocalized(
-        'USER_ALREADY_EXISTS',
+      throw new GenericHttpException(
+        ERROR_MESSAGES.USER_ALREADY_EXISTS,
         HttpStatus.CONFLICT,
       );
-  }
-
-  async deleteAllUser() {
-    await this.prisma.user.deleteMany();
   }
 
   async checkEmail(email: string) {
@@ -229,11 +227,10 @@ export class UserService {
         },
       };
     } catch (error) {
-      console.error('Email check error:', error);
-      return {
-        success: false,
-        user: null,
-      };
+      throw new GenericHttpException(
+        ERROR_MESSAGES.EMAIL_CHECK_FAILED,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }
