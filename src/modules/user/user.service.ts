@@ -3,7 +3,6 @@ import { DatabaseService } from '../../configs/database/database.service';
 import { GenericHttpException } from '../../common/application/exceptions/generic-http-exception';
 import { HttpStatus } from '@nestjs/common';
 import { CreateUserRequest } from './dtos/request/create-user.request';
-import { ToggleUserActivityRequest } from './dtos/request/toggle-user-activity.request';
 import { UserListFilterInput } from './dtos/request/user-filter.input';
 import { HelperService } from '../../common/utils/helper/helper.service';
 import { ERROR_MESSAGES } from '../../common/constants/error-messages.constant';
@@ -124,7 +123,6 @@ export class UserService {
   }
 
   async toggleUserActivity(
-    data: ToggleUserActivityRequest,
     userId: string,
     currentUserId: string,
   ) {
@@ -152,7 +150,7 @@ export class UserService {
 
     const user = await this.prisma.user.update({
       where: { id: userId },
-      data: { active: data.active },
+      data: { active: !existingUser.active },
     });
     return user;
   }

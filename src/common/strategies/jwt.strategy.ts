@@ -5,6 +5,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { IContextAuthService } from '../application/context/context-auth.interface';
 import { IContextAuthServiceToken } from '../application/context/context-auth.interface';
 import { GenericHttpException } from '../application/exceptions/generic-http-exception';
+import { TOKEN_CONSTANTS } from '../constants';
 import { get } from 'env-var';
 
 @Injectable()
@@ -17,6 +18,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       secretOrKey: get('JWT_SECRET').required().asString(),
       ignoreExpiration: false,
+      algorithms: [TOKEN_CONSTANTS.ACCESS_TOKEN.ALGORITHM],
     });
   }
 

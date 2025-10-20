@@ -3,11 +3,13 @@ import { get } from 'env-var';
 import { json, static as staticMiddleware } from 'express';
 import { AppModule } from './app.module';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import { NestFactory } from '@nestjs/core';
 import rateLimit from 'express-rate-limit';
 import { existsSync, mkdirSync, writeFile } from 'fs';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { APP_CONSTANTS } from './common/constants';
 // Global filters and pipes are set up in AppModule
 import * as path from 'path';
 
@@ -25,6 +27,7 @@ function setupMiddlewares(app: NestExpressApplication) {
   // Setup JSON parsing for all routes
   app.use(json());
   app.use(compression());
+  app.use(cookieParser()); // Enable cookie parsing for HttpOnly cookies
   app.use(
     helmet({
       contentSecurityPolicy: false,
@@ -60,9 +63,9 @@ function setupGlobalFilters(app: NestExpressApplication) {
 
 function setupSwagger(app: NestExpressApplication) {
   const config = new DocumentBuilder()
-    .setTitle('Ding Platform API')
-    .setDescription('The Ding Platform API documentation')
-    .setVersion('1.0')
+    .setTitle(APP_CONSTANTS.APP.NAME)
+    .setDescription(APP_CONSTANTS.APP.DESCRIPTION)
+    .setVersion(APP_CONSTANTS.APP.VERSION)
     .addBearerAuth(
       {
         type: 'http',
@@ -77,7 +80,7 @@ function setupSwagger(app: NestExpressApplication) {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document, {
+  SwaggerModule.setup(APP_CONSTANTS.API.DOCS_PATH, app, document, {
     swaggerOptions: {
       persistAuthorization: true,
     },
@@ -87,11 +90,20 @@ function setupSwagger(app: NestExpressApplication) {
 async function bootstrap(): Promise<void> {
   if (get('NODE_ENV').asString() === 'production') initializeLogging();
 
+  const frontendUrl = get('FRONTEND_URL').default('http://localhost:5173').asString();
+  const isProduction = get('NODE_ENV').asString() === 'production';
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    cors: { origin: '*' },
+    cors: {
+      origin: isProduction ? frontendUrl : true, // Allow all in dev, restrict in prod
+      credentials: true, // Enable cookies/credentials
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+      exposedHeaders: ['Set-Cookie'],
+    },
   });
 
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix(APP_CONSTANTS.API.PREFIX);
   setupMiddlewares(app);
   setupGlobalFilters(app);
   setupStaticFileServing(app);
@@ -103,6 +115,6 @@ async function bootstrap(): Promise<void> {
   await app.listen(port);
 
   console.log(`Application is running on: http://localhost:${port}`);
-  console.log(`Swagger documentation available at: http://localhost:${port}/api/docs`);
+  console.log(`Swagger documentation available at: http://localhost:${port}/${APP_CONSTANTS.API.DOCS_PATH}`);
 }
 bootstrap();

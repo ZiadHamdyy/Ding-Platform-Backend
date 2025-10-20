@@ -6,5 +6,5 @@ export class AuthResponse {
   user: UserResponse;
 
   @Expose()
-  token: string;
+  accessToken: string;
 }

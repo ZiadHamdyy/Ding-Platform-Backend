@@ -39,18 +39,4 @@ export class SessionController {
       meta,
     };
   }
-
-  @Delete(':sessionId')
-  @UseGuards(JwtAuthenticationGuard)
-  @HttpCode(HttpStatus.OK)
-  async terminateSession(
-    @currentUser() user: currentUserType,
-    @Param('sessionId') sessionId: string,
-  ) {
-    await this.sessionService.terminateSession(sessionId, user.id);
-    return {
-      success: true,
-      message: 'Session terminated successfully',
-    };
-  }
 }

@@ -21,7 +21,6 @@ import { CheckEmailResponse } from './dtos/response/check-email.response';
 import { UserListFilterInput } from './dtos/request/user-filter.input';
 import { CheckEmailRequest } from './dtos/request/check-email.request';
 import { CreateUserRequest } from './dtos/request/create-user.request';
-import { ToggleUserActivityRequest } from './dtos/request/toggle-user-activity.request';
 import { JwtAuthenticationGuard } from '../../common/guards/strategy.guards/jwt.guard';
 import { currentUser } from '../../common/decorators/currentUser.decorator';
 import type { currentUserType } from '../../common/types/current-user.type';
@@ -31,33 +30,32 @@ import type { currentUserType } from '../../common/types/current-user.type';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Get()
-  async getAllUsers(@Query() filters: UserListFilterInput) {
-    return await this.userService.getAllUsers(filters);
-  }
+  // @Get()
+  // async getAllUsers(@Query() filters: UserListFilterInput) {
+  //   return await this.userService.getAllUsers(filters);
+  // }
 
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  @Serialize(UserResponse)
-  async createUser(@Body() data: CreateUserRequest) {
-    return await this.userService.createUser(data);
-  }
+  // @Post()
+  // @HttpCode(HttpStatus.CREATED)
+  // @Serialize(UserResponse)
+  // async createUser(@Body() data: CreateUserRequest) {
+  //   return await this.userService.createUser(data);
+  // }
 
-  @Get('by-email')
-  @Serialize(UserIdResponse)
-  async getUserIdByEmail(@Query('email') email: string) {
-    return await this.userService.getVerifiedUserIdByEmail(email);
-  }
+  // @Get('by-email')
+  // @Serialize(UserIdResponse)
+  // async getUserIdByEmail(@Query('email') email: string) {
+  //   return await this.userService.getVerifiedUserIdByEmail(email);
+  // }
 
   @Patch(':id/toggle-activity')
   @HttpCode(HttpStatus.OK)
   @Serialize(UserResponse)
   async toggleUserActivity(
     @Param('id') userId: string,
-    @Body() data: ToggleUserActivityRequest,
     @currentUser() currentUser: currentUserType,
   ) {
-    return await this.userService.toggleUserActivity(data, userId, currentUser.id);
+    return await this.userService.toggleUserActivity(userId, currentUser.id);
   }
 
   @Delete(':id')
@@ -68,10 +66,10 @@ export class UserController {
     return await this.userService.deleteUser(userId);
   }
 
-  @Post('check-email')
-  @HttpCode(HttpStatus.OK)
-  @Serialize(CheckEmailResponse)
-  async checkEmail(@Body() data: CheckEmailRequest) {
-    return await this.userService.checkEmail(data.email);
-  }
+  // @Post('check-email')
+  // @HttpCode(HttpStatus.OK)
+  // @Serialize(CheckEmailResponse)
+  // async checkEmail(@Body() data: CheckEmailRequest) {
+  //   return await this.userService.checkEmail(data.email);
+  // }
 }

@@ -3,16 +3,29 @@ import { Session, User, SessionStatus } from '@prisma/client';
 import { DatabaseService } from '../../configs/database/database.service';
 import { GenericHttpException } from '../../common/application/exceptions/generic-http-exception';
 import { ERROR_MESSAGES } from '../../common/constants/error-messages.constant';
+import { HelperService } from '../../common/utils/helper/helper.service';
 
 @Injectable()
 export class SessionService {
-  constructor(private readonly prisma: DatabaseService) {}
+  constructor(
+    private readonly prisma: DatabaseService,
+    private readonly helperService: HelperService,
+  ) {}
 
-  async create(user: User, ipAddress?: string, userAgent?: string) {
+  async create(
+    user: User,
+    refreshToken: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
     try {
+      // Hash the refresh token before storing (Security Best Practice)
+      const hashedRefreshToken = await this.helperService.hashPassword(refreshToken);
+      
       return await this.prisma.session.create({
         data: {
           userId: user.id,
+          refreshToken: hashedRefreshToken,
           ipAddress: ipAddress || 'unknown',
           userAgent: userAgent || 'unknown',
           status: SessionStatus.ACTIVE,
@@ -76,31 +89,7 @@ export class SessionService {
     }
   }
 
-  async terminateSession(sessionId: string, userId: string): Promise<void> {
-    try {
-      const result = await this.prisma.session.deleteMany({
-        where: {
-          id: sessionId,
-          userId: userId,
-        },
-      });
-
-      if (result.count === 0) {
-        throw new GenericHttpException(
-          ERROR_MESSAGES.SESSION_NOT_FOUND,
-          HttpStatus.NOT_FOUND,
-        );
-      }
-    } catch (error) {
-      if (error instanceof GenericHttpException) {
-        throw error;
-      }
-      throw new GenericHttpException(
-        ERROR_MESSAGES.SESSION_TERMINATE_FAILED,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
+  
 
   async terminateAllSessions(userId: string): Promise<void> {
     try {
@@ -114,4 +103,41 @@ export class SessionService {
       );
     }
   }
+
+  async findByRefreshToken(
+    refreshToken: string,
+  ): Promise<(Session & { user: User }) | null> {
+    try {
+      // Get all active sessions for comparison
+      const sessions = await this.prisma.session.findMany({
+        where: {
+          status: SessionStatus.ACTIVE,
+        },
+        include: {
+          user: true,
+        },
+      });
+
+      // Compare the provided refresh token with each hashed token
+      for (const session of sessions) {
+        if (session.refreshToken) {
+          const isMatch = await this.helperService.comparePassword(
+            refreshToken,
+            session.refreshToken,
+          );
+          if (isMatch) {
+            return session;
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.SESSION_RETRIEVE_FAILED,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
 }

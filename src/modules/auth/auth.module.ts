@@ -10,6 +10,8 @@ import { AuthService } from './auth.service';
 import { SessionModule } from '../session/session.module';
 import { LocalStrategy } from '../../common/strategies/local.strategy';
 import { JwtStrategy } from '../../common/strategies/jwt.strategy';
+import { RefreshTokenGuard } from '../../common/guards/refresh-token.guard';
+import { TOKEN_CONSTANTS } from '../../common/constants';
 
 @Module({
   imports: [
@@ -18,8 +20,16 @@ import { JwtStrategy } from '../../common/strategies/jwt.strategy';
       useFactory: async (configService: ConfigService) => {
         const options: JwtModuleOptions = {
           secret: configService.get('JWT_SECRET'),
-          signOptions: { algorithm: 'HS256' },
-          verifyOptions: { algorithms: ['HS256'] },
+          signOptions: { 
+            algorithm: TOKEN_CONSTANTS.ACCESS_TOKEN.ALGORITHM,
+            issuer: TOKEN_CONSTANTS.SECURITY.JWT_ISSUER,
+            audience: TOKEN_CONSTANTS.SECURITY.JWT_AUDIENCE,
+          },
+          verifyOptions: { 
+            algorithms: [TOKEN_CONSTANTS.ACCESS_TOKEN.ALGORITHM],
+            issuer: TOKEN_CONSTANTS.SECURITY.JWT_ISSUER,
+            audience: TOKEN_CONSTANTS.SECURITY.JWT_AUDIENCE,
+          },
         };
         return options;
       },
@@ -30,7 +40,7 @@ import { JwtStrategy } from '../../common/strategies/jwt.strategy';
     HelperModule,
     SessionModule,
   ],
-  providers: [AuthService, LocalStrategy, JwtStrategy],
+  providers: [AuthService, LocalStrategy, JwtStrategy, RefreshTokenGuard],
   controllers: [AuthController],
 })
 export class AuthModule {}
