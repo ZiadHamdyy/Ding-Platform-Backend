@@ -80,6 +80,14 @@ export const ERROR_MESSAGES = {
   PASSWORD_UPDATE_SUCCESS: 'Password updated successfully',
   PASSWORD_UPDATE_FAILED: 'Failed to update password. Please try again',
   NEW_PASSWORD_SAME_AS_OLD: 'New password must be different from old password',
+
+  // Email Verification Messages
+  EMAIL_VERIFICATION_SUCCESS: 'Email verified successfully',
+  EMAIL_ALREADY_VERIFIED: 'Email is already verified',
+  SIGNUP_SUCCESS: 'Signup successful. Please check your email to verify your account.',
+
+  // Session Messages
+  ALREADY_SIGNED_IN: 'You are already signed in with this device',
 } as const;
 
 // Type for error message keys

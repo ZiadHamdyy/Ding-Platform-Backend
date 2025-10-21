@@ -20,6 +20,7 @@ import { ForgotPasswordRequest } from './dtos/request/forgot-password.request';
 import { VerifyForgotPasswordRequest } from './dtos/request/verify-forgot-password.request';
 import { ResetPasswordRequest } from './dtos/request/reset-password.request';
 import { UpdatePasswordRequest } from './dtos/request/update-password.request';
+import { VerifyEmailRequest } from './dtos/request/verify-email.request';
 import { LocalAuthGuard } from '../../common/guards/strategy.guards/local.guard';
 import { RefreshTokenGuard } from '../../common/guards/refresh-token.guard';
 import { RefreshToken } from '../../common/decorators/refresh-token.decorator';
@@ -121,5 +122,16 @@ export class AuthController {
     @Body() updatePasswordRequest: UpdatePasswordRequest,
   ) {
     return await this.authService.updatePassword(user, updatePasswordRequest);
+  }
+
+  @Post('verify-email')
+  @Serialize(AuthResponse)
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(
+    @Body() verifyEmailRequest: VerifyEmailRequest,
+    @clientIp() ipAddress: string,
+    @userAgent() userAgent: string,
+  ) {
+    return await this.authService.verifyEmail(verifyEmailRequest, ipAddress, userAgent);
   }
 }

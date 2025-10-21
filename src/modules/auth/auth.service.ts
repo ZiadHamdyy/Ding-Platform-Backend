@@ -38,9 +38,28 @@ export class AuthService {
         name: name || email.split('@')[0],
         image,
         active: true,
-        emailVerified: true,
+        emailVerified: false, // Set to false - requires email verification
       },
     });
+
+    // Generate email verification OTP
+    const otp = Math.floor(TOKEN_CONSTANTS.OTP.MIN_VALUE + Math.random() * (TOKEN_CONSTANTS.OTP.MAX_VALUE - TOKEN_CONSTANTS.OTP.MIN_VALUE + 1)).toString();
+    const otpHash = await this.helperService.hashPassword(otp);
+    const otpExpiresAt = new Date(Date.now() + TOKEN_CONSTANTS.OTP.EXPIRES_IN_MS);
+
+    // Create email verification OTP record
+    await this.prisma.otp.create({
+      data: {
+        userId: user.id,
+        otpHash,
+        otpExpiresAt,
+        otpVerified: false,
+        type: 'EMAIL_VERIFICATION',
+      },
+    });
+
+    // Send email verification OTP
+    await this.emailService.sendEmailVerificationOtp(email, otp, TOKEN_CONSTANTS.OTP.EXPIRES_IN_MINUTES);
 
     return user;
   }
@@ -76,6 +95,26 @@ export class AuthService {
   }
 
   async login(user: User, ipAddress?: string, userAgent?: string) {
+    // Check if user already has an active session with the same IP and user agent
+    if (ipAddress && userAgent) {
+      const existingSession = await this.prisma.session.findFirst({
+        where: {
+          userId: user.id,
+          ipAddress: ipAddress,
+          userAgent: userAgent,
+          status: 'ACTIVE',
+        },
+      });
+
+      if (existingSession) {
+        // User is already logged in with the same IP and user agent
+        throw new GenericHttpException(
+          ERROR_MESSAGES.ALREADY_SIGNED_IN,
+          HttpStatus.CONFLICT,
+        );
+      }
+    }
+
     // Generate refresh token first
     const refreshToken = this.generateRefreshToken({
       userId: user.id,
@@ -245,8 +284,8 @@ export class AuthService {
     return result;
   }
 
-  // Private helper methods for cookie management
-  private setRefreshTokenCookie(response: Response, refreshToken: string): void {
+  // Public helper methods for cookie management
+  setRefreshTokenCookie(response: Response, refreshToken: string): void {
     response.cookie(TOKEN_CONSTANTS.COOKIE.REFRESH_TOKEN_NAME, refreshToken, {
       httpOnly: TOKEN_CONSTANTS.COOKIE.HTTP_ONLY,
       secure: TOKEN_CONSTANTS.COOKIE.SECURE,
@@ -528,6 +567,93 @@ export class AuthService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  // Email Verification Methods
+  async verifyEmail(request: { email: string; otp: string }, ipAddress?: string, userAgent?: string) {
+    const { email, otp } = request;
+
+    // Find user by email
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    // If user not found
+    if (!user) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.USER_NOT_FOUND,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Check if email is already verified
+    if (user.emailVerified) {
+      return {user};
+    }
+
+    // Find the most recent email verification OTP record for this user
+    const otpRecord = await this.prisma.otp.findFirst({
+      where: { 
+        userId: user.id,
+        type: 'EMAIL_VERIFICATION',
+        otpVerified: false, // Ensure OTP hasn't been used already
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // If no OTP record found
+    if (!otpRecord) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.INVALID_OR_EXPIRED_OTP,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Check if OTP expired
+    if (new Date() > otpRecord.otpExpiresAt) {
+      // Delete expired OTP record
+      await this.prisma.otp.delete({
+        where: { id: otpRecord.id },
+      });
+
+      throw new GenericHttpException(
+        ERROR_MESSAGES.INVALID_OR_EXPIRED_OTP,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Verify OTP
+    const isOtpValid = await this.helperService.comparePassword(otp, otpRecord.otpHash);
+
+    if (!isOtpValid) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.INVALID_OR_EXPIRED_OTP,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Mark email as verified and delete the OTP record in a transaction
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+      },
+    });
+
+    // Delete the OTP record immediately after verification
+    await this.prisma.otp.delete({
+      where: { id: otpRecord.id },
+    });
+
+    // Create session and log user in
+    if (ipAddress && userAgent) {
+      return await this.login(updatedUser, ipAddress, userAgent);
+    }
+
+    // If no session creation, return user without tokens (same as login structure)
+    return {
+      user: updatedUser,
+    };
   }
 
 }
