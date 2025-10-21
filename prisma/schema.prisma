@@ -19,13 +19,14 @@ model User {
   name          String?
   image         String?
   password      String?
-  emailVerified Boolean  @default(true)
+  emailVerified Boolean  @default(false)
   active        Boolean  @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  Session Session[]
+  Session        Session[]
+  Otp            Otp[]
 }
 
 model Session {
@@ -45,4 +46,26 @@ model Session {
 enum SessionStatus {
   ACTIVE
   INACTIVE
+}
+
+model Otp {
+  id           String    @id @default(uuid())
+  otpHash      String
+  otpExpiresAt DateTime
+  otpVerified  Boolean   @default(false)
+
+  type         OtpType
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([otpExpiresAt])
+}
+
+enum OtpType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
 }

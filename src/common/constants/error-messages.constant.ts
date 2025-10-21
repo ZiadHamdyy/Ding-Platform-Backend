@@ -11,6 +11,16 @@ export const ERROR_MESSAGES = {
   SESSION_EXPIRED: 'Your session has expired. Please login again',
   TOKEN_REFRESH_FAILED: 'Failed to refresh token. Please try again',
 
+  // Password Recovery Errors
+  OTP_SENT_IF_EMAIL_EXISTS: 'OTP sent if email exists',
+  OTP_SENT_SUCCESS: 'OTP sent successfully to your email',
+  INVALID_OR_EXPIRED_OTP: 'Invalid or expired OTP',
+  OTP_VERIFIED_SUCCESS: 'OTP verified successfully',
+  PASSWORD_RESET_SUCCESS: 'Password reset successful',
+  OTP_SEND_FAILED: 'Failed to send OTP. Please try again',
+  PASSWORD_RESET_FAILED: 'Failed to reset password. Please try again',
+  OTP_NOT_VERIFIED: 'Please verify OTP before resetting password',
+
   // User Errors
   USER_NOT_FOUND: 'User not found',
   USER_ALREADY_EXISTS: 'User with this email already exists',
@@ -57,6 +67,19 @@ export const ERROR_MESSAGES = {
 
   ACTIVE_STATUS_SHOULD_BE_BOOLEAN: 'Active status must be a boolean',
   ACTIVE_STATUS_REQUIRED: 'Active status is required',
+
+  // OTP Validation Messages
+  OTP_REQUIRED: 'OTP is required',
+  OTP_SHOULD_BE_STRING: 'OTP must be a string',
+  OTP_MUST_BE_6_DIGITS: 'OTP must be exactly 6 digits',
+
+  // Password Update Messages
+  OLD_PASSWORD_REQUIRED: 'Old password is required',
+  OLD_PASSWORD_SHOULD_BE_STRING: 'Old password must be a string',
+  OLD_PASSWORD_INCORRECT: 'Old password is incorrect',
+  PASSWORD_UPDATE_SUCCESS: 'Password updated successfully',
+  PASSWORD_UPDATE_FAILED: 'Failed to update password. Please try again',
+  NEW_PASSWORD_SAME_AS_OLD: 'New password must be different from old password',
 } as const;
 
 // Type for error message keys

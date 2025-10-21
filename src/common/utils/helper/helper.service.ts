@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as slug from 'speakingurl';
 import { generate } from 'voucher-code-generator';
+import { TOKEN_CONSTANTS } from '../../constants/token.constants';
 
 @Injectable()
 export class HelperService {
@@ -20,7 +21,7 @@ export class HelperService {
   }
 
   async hashPassword(password: string): Promise<string> {
-    return await bcrypt.hash(password, 12);
+    return await bcrypt.hash(password, TOKEN_CONSTANTS.SECURITY.BCRYPT_ROUNDS);
   }
 
   async comparePassword(password: string, hash: string): Promise<boolean> {

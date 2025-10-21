@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
   UseGuards,
   Res,
@@ -15,6 +16,10 @@ import { SignupRequest } from './dtos/request/signup.request';
 import { AuthResponse } from './dtos/responses/auth.response';
 import { RefreshTokenResponse } from './dtos/responses/refresh-token.response';
 import { LoginRequest } from './dtos/request/login.request';
+import { ForgotPasswordRequest } from './dtos/request/forgot-password.request';
+import { VerifyForgotPasswordRequest } from './dtos/request/verify-forgot-password.request';
+import { ResetPasswordRequest } from './dtos/request/reset-password.request';
+import { UpdatePasswordRequest } from './dtos/request/update-password.request';
 import { LocalAuthGuard } from '../../common/guards/strategy.guards/local.guard';
 import { RefreshTokenGuard } from '../../common/guards/refresh-token.guard';
 import { RefreshToken } from '../../common/decorators/refresh-token.decorator';
@@ -88,5 +93,33 @@ export class AuthController {
   @UseGuards(JwtAuthenticationGuard)
   async getMe(@currentUser() user: currentUserType) {
     return user;
+  }
+
+  @Patch('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() forgotPasswordRequest: ForgotPasswordRequest) {
+    return await this.authService.forgotPassword(forgotPasswordRequest);
+  }
+
+  @Patch('verify-forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async verifyForgotPassword(@Body() verifyForgotPasswordRequest: VerifyForgotPasswordRequest) {
+    return await this.authService.verifyForgotPassword(verifyForgotPasswordRequest);
+  }
+
+  @Patch('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() resetPasswordRequest: ResetPasswordRequest) {
+    return await this.authService.resetPassword(resetPasswordRequest);
+  }
+
+  @Patch('update-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthenticationGuard)
+  async updatePassword(
+    @currentUser() user: currentUserType,
+    @Body() updatePasswordRequest: UpdatePasswordRequest,
+  ) {
+    return await this.authService.updatePassword(user, updatePasswordRequest);
   }
 }

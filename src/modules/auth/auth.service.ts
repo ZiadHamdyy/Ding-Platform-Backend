@@ -9,6 +9,11 @@ import { Session, User } from '@prisma/client';
 import { GenericHttpException } from '../../common/application/exceptions/generic-http-exception';
 import { ERROR_MESSAGES, TOKEN_CONSTANTS } from '../../common/constants';
 import { SessionService } from '../session/session.service';
+import { EmailService } from '../../common/services/email.service';
+import { ForgotPasswordRequest } from './dtos/request/forgot-password.request';
+import { VerifyForgotPasswordRequest } from './dtos/request/verify-forgot-password.request';
+import { ResetPasswordRequest } from './dtos/request/reset-password.request';
+import { UpdatePasswordRequest } from './dtos/request/update-password.request';
 import type { Response } from 'express';
 
 @Injectable()
@@ -19,6 +24,7 @@ export class AuthService {
     private readonly prisma: DatabaseService,
     private readonly jwtService: JwtService,
     private readonly sessionService: SessionService,
+    private readonly emailService: EmailService,
   ) {}
 
   async signup(request: SignupRequest) {
@@ -252,6 +258,276 @@ export class AuthService {
 
   private clearRefreshTokenCookie(response: Response): void {
     response.clearCookie(TOKEN_CONSTANTS.COOKIE.REFRESH_TOKEN_NAME);
+  }
+
+  // Password Recovery Methods
+  async forgotPassword(request: ForgotPasswordRequest) {
+    const { email } = request;
+
+    try {
+      // Find user by email (silently fail if not found to prevent email enumeration)
+      const user = await this.prisma.user.findUnique({
+        where: { email },
+      });
+
+      // Always return success message even if user not found (security best practice)
+      if (!user) {
+        return {
+          success: true,
+          message: ERROR_MESSAGES.OTP_SENT_SUCCESS,
+        };
+      }
+
+      // Generate 6-digit OTP
+      const otp = Math.floor(TOKEN_CONSTANTS.OTP.MIN_VALUE + Math.random() * (TOKEN_CONSTANTS.OTP.MAX_VALUE - TOKEN_CONSTANTS.OTP.MIN_VALUE + 1)).toString();
+
+      // Hash OTP
+      const otpHash = await this.helperService.hashPassword(otp);
+
+      // Set expiration time (10 minutes from now)
+      const otpExpiresAt = new Date(Date.now() + TOKEN_CONSTANTS.OTP.EXPIRES_IN_MS);
+
+      // Delete any existing OTP records for this user
+      await this.prisma.otp.deleteMany({
+        where: { userId: user.id },
+      });
+
+      // Create new OTP record
+      await this.prisma.otp.create({
+        data: {
+          userId: user.id,
+          otpHash,
+          otpExpiresAt,
+          otpVerified: false,
+          type: 'PASSWORD_RESET',
+        },
+      });
+
+      // Send OTP email
+      await this.emailService.sendOtpEmail(email, otp, TOKEN_CONSTANTS.OTP.EXPIRES_IN_MINUTES);
+
+      return {
+        success: true,
+        message: ERROR_MESSAGES.OTP_SENT_SUCCESS,
+      };
+    } catch (error) {
+      // Log error but return generic success message to prevent email enumeration
+      console.error('Forgot password error:', error);
+      return {
+        success: true,
+        message: ERROR_MESSAGES.OTP_SENT_SUCCESS,
+      };
+    }
+  }
+
+  async verifyForgotPassword(request: VerifyForgotPasswordRequest) {
+    const { email, otp } = request;
+
+    // Find user by email
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    // If user not found
+    if (!user) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.INVALID_OR_EXPIRED_OTP,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Find the most recent OTP record for this user
+    const otpRecord = await this.prisma.otp.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // If no OTP record found
+    if (!otpRecord) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.INVALID_OR_EXPIRED_OTP,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Check if OTP expired
+    if (new Date() > otpRecord.otpExpiresAt) {
+      // Delete expired OTP record
+      await this.prisma.otp.delete({
+        where: { id: otpRecord.id },
+      });
+
+      throw new GenericHttpException(
+        ERROR_MESSAGES.INVALID_OR_EXPIRED_OTP,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Verify OTP
+    const isOtpValid = await this.helperService.comparePassword(otp, otpRecord.otpHash);
+
+    if (!isOtpValid) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.INVALID_OR_EXPIRED_OTP,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Mark OTP as verified
+    await this.prisma.otp.update({
+      where: { id: otpRecord.id },
+      data: {
+        otpVerified: true,
+      },
+    });
+
+    return {
+      success: true,
+      message: ERROR_MESSAGES.OTP_VERIFIED_SUCCESS,
+    };
+  }
+
+  async resetPassword(request: ResetPasswordRequest) {
+    const { email, newPassword } = request;
+
+    // Find user by email
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    // If user not found
+    if (!user) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.USER_NOT_FOUND,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Find the most recent OTP record for this user
+    const otpRecord = await this.prisma.otp.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Check if OTP record exists
+    if (!otpRecord) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.OTP_NOT_VERIFIED,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Check if OTP was verified
+    if (!otpRecord.otpVerified) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.OTP_NOT_VERIFIED,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Check if OTP expired
+    if (new Date() > otpRecord.otpExpiresAt) {
+      // Delete expired OTP record
+      await this.prisma.otp.delete({
+        where: { id: otpRecord.id },
+      });
+
+      throw new GenericHttpException(
+        ERROR_MESSAGES.INVALID_OR_EXPIRED_OTP,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Hash new password
+    const hashedPassword = await this.helperService.hashPassword(newPassword);
+
+    // Update password
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+      },
+    });
+
+    // Delete the used OTP record
+    await this.prisma.otp.delete({
+      where: { id: otpRecord.id },
+    });
+
+    // Optional: Invalidate all existing sessions for security
+    await this.prisma.session.deleteMany({
+      where: { userId: user.id },
+    });
+
+    return {
+      success: true,
+      message: ERROR_MESSAGES.PASSWORD_RESET_SUCCESS,
+    };
+  }
+
+  async updatePassword(user: User, request: UpdatePasswordRequest) {
+    const { oldPassword, newPassword } = request;
+
+    try {
+      // Check if user has a password (should always be true for logged-in users)
+      if (!user.password) {
+        throw new GenericHttpException(
+          ERROR_MESSAGES.USER_NOT_FOUND,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      // Verify old password
+      const isOldPasswordValid = await this.helperService.comparePassword(
+        oldPassword,
+        user.password,
+      );
+
+      if (!isOldPasswordValid) {
+        throw new GenericHttpException(
+          ERROR_MESSAGES.OLD_PASSWORD_INCORRECT,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Check if new password is different from old password
+      if (oldPassword === newPassword) {
+        throw new GenericHttpException(
+          ERROR_MESSAGES.NEW_PASSWORD_SAME_AS_OLD,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Hash new password
+      const hashedNewPassword = await this.helperService.hashPassword(newPassword);
+
+      // Update password
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashedNewPassword,
+        },
+      });
+
+      // Optional: Invalidate all existing sessions for security
+      // This forces the user to log in again with the new password
+      await this.prisma.session.deleteMany({
+        where: { userId: user.id },
+      });
+
+      return {
+        success: true,
+        message: ERROR_MESSAGES.PASSWORD_UPDATE_SUCCESS,
+      };
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      throw new GenericHttpException(
+        ERROR_MESSAGES.PASSWORD_UPDATE_FAILED,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
 }

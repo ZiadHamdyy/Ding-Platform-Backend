@@ -4,6 +4,7 @@ import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ContextModule } from '../../common/application/context/context.module';
 import { HelperModule } from '../../common/utils/helper/helper.module';
+import { EmailModule } from '../../common/services/email.module';
 import { UserModule } from '../user/user.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -39,6 +40,7 @@ import { TOKEN_CONSTANTS } from '../../common/constants';
     UserModule,
     HelperModule,
     SessionModule,
+    EmailModule,
   ],
   providers: [AuthService, LocalStrategy, JwtStrategy, RefreshTokenGuard],
   controllers: [AuthController],
