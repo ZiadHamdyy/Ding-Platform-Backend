@@ -1,4 +1,4 @@
-version: "3.9"
+version: '3.9'
 
 services:
   postgres:
@@ -11,20 +11,20 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_PORT: ${POSTGRES_PORT}
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - pgdata_dev:/var/lib/postgresql/data
     networks:
       - ding-dev-network
 
-  app:
-    build: 
+  backend:
+    build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: ding-app-dev
+    container_name: ding-backend-dev
     restart: always
     ports:
-      - "3000:3000"
+      - '3000:3000'
     env_file:
       - .env
     environment:
@@ -41,14 +41,25 @@ services:
     # Generate Prisma client and start in development mode
     command: sh -c "pnpm prisma generate && pnpm run start:dev"
 
+  frontend:
+    container_name: ding-frontend-dev
+    build:
+      context: ../Ding-Platform-Frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - 5173:5173
+    volumes:
+      - ../Ding-Platform-Frontend:/app
+      - /app/node_modules
   prisma-studio:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile.dev
+
     container_name: ding-prisma-studio-dev
     restart: always
     ports:
-      - "5555:5555"
+      - '5555:5555'
     env_file:
       - .env
     environment:
@@ -61,7 +72,6 @@ services:
     networks:
       - ding-dev-network
     command: sh -c "pnpm prisma generate && npx prisma studio --hostname 0.0.0.0 --port 5555"
-
 
 volumes:
   pgdata_dev:

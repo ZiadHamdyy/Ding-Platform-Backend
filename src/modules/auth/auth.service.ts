@@ -107,11 +107,10 @@ export class AuthService {
       });
 
       if (existingSession) {
-        // User is already logged in with the same IP and user agent
-        throw new GenericHttpException(
-          ERROR_MESSAGES.ALREADY_SIGNED_IN,
-          HttpStatus.CONFLICT,
-        );
+        // Delete the existing session and create a new one
+        await this.prisma.session.delete({
+          where: { id: existingSession.id },
+        });
       }
     }
 
@@ -570,7 +569,113 @@ export class AuthService {
   }
 
   // Email Verification Methods
-  async verifyEmail(request: { email: string; otp: string }, ipAddress?: string, userAgent?: string) {
+  async resendVerificationCode(request: { email: string }) {
+    const { email } = request;
+
+    // Find user by email
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    // If user not found
+    if (!user) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.USER_NOT_FOUND,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Check if email is already verified
+    if (user.emailVerified) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.EMAIL_ALREADY_VERIFIED,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Delete any existing email verification OTP records for this user
+    await this.prisma.otp.deleteMany({
+      where: { 
+        userId: user.id,
+        type: 'EMAIL_VERIFICATION',
+      },
+    });
+
+    // Generate new email verification OTP
+    const otp = Math.floor(TOKEN_CONSTANTS.OTP.MIN_VALUE + Math.random() * (TOKEN_CONSTANTS.OTP.MAX_VALUE - TOKEN_CONSTANTS.OTP.MIN_VALUE + 1)).toString();
+    const otpHash = await this.helperService.hashPassword(otp);
+    const otpExpiresAt = new Date(Date.now() + TOKEN_CONSTANTS.OTP.EXPIRES_IN_MS);
+
+    // Create new email verification OTP record
+    await this.prisma.otp.create({
+      data: {
+        userId: user.id,
+        otpHash,
+        otpExpiresAt,
+        otpVerified: false,
+        type: 'EMAIL_VERIFICATION',
+      },
+    });
+
+    // Send email verification OTP
+    await this.emailService.sendEmailVerificationOtp(email, otp, TOKEN_CONSTANTS.OTP.EXPIRES_IN_MINUTES);
+
+    return {
+      success: true,
+      message: ERROR_MESSAGES.VERIFICATION_CODE_RESENT,
+    };
+  }
+
+  async resendForgotPasswordCode(request: { email: string }) {
+    const { email } = request;
+
+    // Find user by email
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    // If user not found
+    if (!user) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.USER_NOT_FOUND,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Delete any existing password reset OTP records for this user
+    await this.prisma.otp.deleteMany({
+      where: { 
+        userId: user.id,
+        type: 'PASSWORD_RESET',
+      },
+    });
+
+    // Generate new password reset OTP
+    const otp = Math.floor(TOKEN_CONSTANTS.OTP.MIN_VALUE + Math.random() * (TOKEN_CONSTANTS.OTP.MAX_VALUE - TOKEN_CONSTANTS.OTP.MIN_VALUE + 1)).toString();
+    const otpHash = await this.helperService.hashPassword(otp);
+    const otpExpiresAt = new Date(Date.now() + TOKEN_CONSTANTS.OTP.EXPIRES_IN_MS);
+
+    // Create new password reset OTP record
+    await this.prisma.otp.create({
+      data: {
+        userId: user.id,
+        otpHash,
+        otpExpiresAt,
+        otpVerified: false,
+        type: 'PASSWORD_RESET',
+      },
+    });
+
+    // Send password reset OTP
+    await this.emailService.sendOtpEmail(email, otp, TOKEN_CONSTANTS.OTP.EXPIRES_IN_MINUTES);
+
+    return {
+      success: true,
+      message: ERROR_MESSAGES.FORGOT_PASSWORD_CODE_RESENT,
+    };
+  }
+
+  async verifyEmail(request: { email: string; otp: string }, ipAddress?: string, userAgent?: string, response?: any) {
     const { email, otp } = request;
 
     // Find user by email
@@ -647,7 +752,7 @@ export class AuthService {
 
     // Create session and log user in
     if (ipAddress && userAgent) {
-      return await this.login(updatedUser, ipAddress, userAgent);
+      return await this.loginWithCookie(updatedUser, ipAddress, userAgent, response);
     }
 
     // If no session creation, return user without tokens (same as login structure)

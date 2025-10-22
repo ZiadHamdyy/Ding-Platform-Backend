@@ -21,6 +21,8 @@ import { VerifyForgotPasswordRequest } from './dtos/request/verify-forgot-passwo
 import { ResetPasswordRequest } from './dtos/request/reset-password.request';
 import { UpdatePasswordRequest } from './dtos/request/update-password.request';
 import { VerifyEmailRequest } from './dtos/request/verify-email.request';
+import { ResendVerificationRequest } from './dtos/request/resend-verification.request';
+import { ResendForgotPasswordRequest } from './dtos/request/resend-forgot-password.request';
 import { LocalAuthGuard } from '../../common/guards/strategy.guards/local.guard';
 import { RefreshTokenGuard } from '../../common/guards/refresh-token.guard';
 import { RefreshToken } from '../../common/decorators/refresh-token.decorator';
@@ -131,7 +133,20 @@ export class AuthController {
     @Body() verifyEmailRequest: VerifyEmailRequest,
     @clientIp() ipAddress: string,
     @userAgent() userAgent: string,
+    @Res({ passthrough: true }) response: Response,
   ) {
-    return await this.authService.verifyEmail(verifyEmailRequest, ipAddress, userAgent);
+    return await this.authService.verifyEmail(verifyEmailRequest, ipAddress, userAgent, response);
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  async resendVerification(@Body() resendVerificationRequest: ResendVerificationRequest) {
+    return await this.authService.resendVerificationCode(resendVerificationRequest);
+  }
+
+  @Post('resend-forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async resendForgotPassword(@Body() resendForgotPasswordRequest: ResendForgotPasswordRequest) {
+    return await this.authService.resendForgotPasswordCode(resendForgotPasswordRequest);
   }
 }

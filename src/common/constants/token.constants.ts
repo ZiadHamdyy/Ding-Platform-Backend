@@ -5,14 +5,14 @@
 export const TOKEN_CONSTANTS = {
   // Access Token Configuration
   ACCESS_TOKEN: {
-    EXPIRES_IN: '10s', // 15 minutes
+    EXPIRES_IN: '15m', // 15 minutes
     ALGORITHM: 'HS256' as const,
     TYPE: 'access' as const,
   },
 
   // Refresh Token Configuration
   REFRESH_TOKEN: {
-    EXPIRES_IN: '1m', // 7 days
+    EXPIRES_IN: '7d', // 7 days
     ALGORITHM: 'HS256' as const,
     TYPE: 'refresh' as const,
   },
@@ -60,8 +60,8 @@ export const TOKEN_CONSTANTS = {
     LENGTH: 6,
     MIN_VALUE: 100000,
     MAX_VALUE: 999999,
-    EXPIRES_IN_MS: 10 * 60 * 1000, // 10 minutes in milliseconds
-    EXPIRES_IN_MINUTES: 10,
+    EXPIRES_IN_MS: 1 * 60 * 1000, // 1 minute in milliseconds
+    EXPIRES_IN_MINUTES: 1,
   },
 
   // Security Configuration

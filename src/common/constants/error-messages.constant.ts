@@ -88,6 +88,10 @@ export const ERROR_MESSAGES = {
 
   // Session Messages
   ALREADY_SIGNED_IN: 'You are already signed in with this device',
+
+  // Resend Verification Messages
+  VERIFICATION_CODE_RESENT: 'Verification code has been resent to your email',
+  FORGOT_PASSWORD_CODE_RESENT: 'Password reset code has been resent to your email',
 } as const;
 
 // Type for error message keys
