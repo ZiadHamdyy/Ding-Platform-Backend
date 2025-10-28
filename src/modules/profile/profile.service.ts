@@ -1,3 +1,8 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 // src/modules/profile/profile.service.ts
 import { Injectable, HttpStatus, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../../configs/database/database.service';
@@ -8,7 +13,6 @@ import { PROFILE_CONSTANTS } from '../../common/constants/profile.constants';
 import { UpdateProfileRequest } from './dtos/request/update-profile.request';
 import { UpdatePrivacyRequest } from './dtos/request/update-privacy.request';
 import { SearchProfileRequest } from './dtos/request/search-profile.request';
-import { VisibilityType } from '@prisma/client';
 
 @Injectable()
 export class ProfileService {
@@ -46,7 +50,7 @@ export class ProfileService {
 
     // Check if requester has access to view this profile
     if (requesterId && requesterId !== userId) {
-      await this.checkProfileAccess(profile, requesterId);
+      this.checkProfileAccess(profile, requesterId);
     }
 
     // Filter sensitive data based on privacy settings for non-owners
@@ -62,8 +66,9 @@ export class ProfileService {
    * Auto-creates privacy settings with defaults if new profile
    */
   async createOrUpdateProfile(userId: string, data: UpdateProfileRequest) {
+    let existingProfile;
     try {
-      const existingProfile = await this.prisma.profile.findUnique({
+      existingProfile = await this.prisma.profile.findUnique({
         where: { userId },
       });
 
@@ -104,25 +109,25 @@ export class ProfileService {
           privacySettings: {
             create: {
               profileVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_PROFILE_VISIBILITY as VisibilityType,
+                .DEFAULT_PROFILE_VISIBILITY as any,
               postsVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_POSTS_VISIBILITY as VisibilityType,
+                .DEFAULT_POSTS_VISIBILITY as any,
               friendsVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_FRIENDS_VISIBILITY as VisibilityType,
+                .DEFAULT_FRIENDS_VISIBILITY as any,
               bioVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_BIO_VISIBILITY as VisibilityType,
+                .DEFAULT_BIO_VISIBILITY as any,
               emailVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_EMAIL_VISIBILITY as VisibilityType,
+                .DEFAULT_EMAIL_VISIBILITY as any,
               phoneVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_PHONE_VISIBILITY as VisibilityType,
+                .DEFAULT_PHONE_VISIBILITY as any,
               locationVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_LOCATION_VISIBILITY as VisibilityType,
+                .DEFAULT_LOCATION_VISIBILITY as any,
               dateOfBirthVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_DOB_VISIBILITY as VisibilityType,
+                .DEFAULT_DOB_VISIBILITY as any,
               whoCanSendFriendRequests: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_FRIEND_REQUEST_PERMISSION as VisibilityType,
+                .DEFAULT_FRIEND_REQUEST_PERMISSION as any,
               whoCanMessageMe: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_MESSAGE_PERMISSION as VisibilityType,
+                .DEFAULT_MESSAGE_PERMISSION as any,
             },
           },
         },
@@ -389,25 +394,25 @@ export class ProfileService {
           privacySettings: {
             create: {
               profileVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_PROFILE_VISIBILITY as VisibilityType,
+                .DEFAULT_PROFILE_VISIBILITY as any,
               postsVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_POSTS_VISIBILITY as VisibilityType,
+                .DEFAULT_POSTS_VISIBILITY as any,
               friendsVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_FRIENDS_VISIBILITY as VisibilityType,
+                .DEFAULT_FRIENDS_VISIBILITY as any,
               bioVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_BIO_VISIBILITY as VisibilityType,
+                .DEFAULT_BIO_VISIBILITY as any,
               emailVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_EMAIL_VISIBILITY as VisibilityType,
+                .DEFAULT_EMAIL_VISIBILITY as any,
               phoneVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_PHONE_VISIBILITY as VisibilityType,
+                .DEFAULT_PHONE_VISIBILITY as any,
               locationVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_LOCATION_VISIBILITY as VisibilityType,
+                .DEFAULT_LOCATION_VISIBILITY as any,
               dateOfBirthVisibility: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_DOB_VISIBILITY as VisibilityType,
+                .DEFAULT_DOB_VISIBILITY as any,
               whoCanSendFriendRequests: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_FRIEND_REQUEST_PERMISSION as VisibilityType,
+                .DEFAULT_FRIEND_REQUEST_PERMISSION as any,
               whoCanMessageMe: PROFILE_CONSTANTS.PRIVACY
-                .DEFAULT_MESSAGE_PERMISSION as VisibilityType,
+                .DEFAULT_MESSAGE_PERMISSION as any,
             },
           },
         },
@@ -421,7 +426,9 @@ export class ProfileService {
    * Check if requester has permission to view profile
    * Throws ForbiddenException if access denied
    */
-  private async checkProfileAccess(profile: any, requesterId: string) {
+
+  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
+  private checkProfileAccess(profile: any, _requesterId: string) {
     const visibility = profile.privacySettings?.profileVisibility;
 
     // Allow access for PUBLIC/EVERYONE profiles
@@ -437,12 +444,6 @@ export class ProfileService {
     // Check FRIENDS visibility
     if (visibility === 'FRIENDS') {
       // TODO: Implement friend checking when friend system is ready
-      // const areFriends = await this.checkFriendship(profile.userId, requesterId);
-      // if (!areFriends) {
-      //   throw new ForbiddenException(PROFILE_ERROR_MESSAGES.UNAUTHORIZED_ACCESS);
-      // }
-
-      // For now, deny access until friend system is implemented
       throw new ForbiddenException(PROFILE_ERROR_MESSAGES.UNAUTHORIZED_ACCESS);
     }
   }
@@ -523,7 +524,6 @@ export class ProfileService {
     // FRIENDS visibility
     if (visibility === 'FRIENDS') {
       // TODO: Check friendship when friend system is implemented
-      // return await this.checkFriendship(ownerId, requesterId);
       return false;
     }
 

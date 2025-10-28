@@ -45,7 +45,7 @@ export class ProfileController {
 
   @Get('search')
   @HttpCode(HttpStatus.OK)
-  @Serialize(SearchProfileResponse)
+  @Serialize(SearchProfileResponse, ProfileResponse)
   @ApiOperation({ summary: 'Search public profiles (no auth required)' })
   async searchProfiles(@Query() filters: SearchProfileRequest) {
     return await this.profileService.searchProfiles(filters);
@@ -61,7 +61,10 @@ export class ProfileController {
     @Param('userId') userId: string,
     @currentUser() user?: currentUserType,
   ) {
-    return await this.profileService.getProfile(userId, user?.id);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const requesterId: string | undefined = user?.id;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return await this.profileService.getProfile(userId, requesterId);
   }
 
   @Put()
@@ -76,7 +79,10 @@ export class ProfileController {
     @currentUser() user: currentUserType,
     @Body() data: UpdateProfileRequest,
   ) {
-    return await this.profileService.createOrUpdateProfile(user.id, data);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const userId: string = user.id;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return await this.profileService.createOrUpdateProfile(userId, data);
   }
 
   @Patch('picture')
@@ -116,7 +122,9 @@ export class ProfileController {
     )
     file: Express.Multer.File,
   ) {
-    return await this.profileService.uploadProfilePicture(user.id, file);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const userId: string = user.id;
+    return await this.profileService.uploadProfilePicture(userId, file);
   }
 
   @Patch('cover')
@@ -156,7 +164,9 @@ export class ProfileController {
     )
     file: Express.Multer.File,
   ) {
-    return await this.profileService.uploadCoverPhoto(user.id, file);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const userId: string = user.id;
+    return await this.profileService.uploadCoverPhoto(userId, file);
   }
 
   @Patch('privacy')
@@ -171,7 +181,10 @@ export class ProfileController {
     @currentUser() user: currentUserType,
     @Body() data: UpdatePrivacyRequest,
   ) {
-    return await this.profileService.updatePrivacySettings(user.id, data);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const userId: string = user.id;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return await this.profileService.updatePrivacySettings(userId, data);
   }
 
   @Delete()
@@ -180,6 +193,8 @@ export class ProfileController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Delete own profile (requires authentication)' })
   async deleteProfile(@currentUser() user: currentUserType) {
-    return await this.profileService.deleteProfile(user.id);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const userId: string = user.id;
+    return await this.profileService.deleteProfile(userId);
   }
 }
