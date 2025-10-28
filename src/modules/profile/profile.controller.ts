@@ -30,7 +30,13 @@ import { ProfileResponse } from './dtos/response/profile.response';
 import { UploadResponse } from './dtos/response/upload.response';
 import { SearchProfileResponse } from './dtos/response/search-profile.response';
 import { PROFILE_CONSTANTS } from '../../common/constants/profile.constants';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 
 @ApiTags('Profile')
 @Controller('profile')
@@ -40,7 +46,7 @@ export class ProfileController {
   @Get('search')
   @HttpCode(HttpStatus.OK)
   @Serialize(SearchProfileResponse)
-  @ApiOperation({ summary: 'Search public profiles' })
+  @ApiOperation({ summary: 'Search public profiles (no auth required)' })
   async searchProfiles(@Query() filters: SearchProfileRequest) {
     return await this.profileService.searchProfiles(filters);
   }
@@ -48,7 +54,9 @@ export class ProfileController {
   @Get(':userId')
   @HttpCode(HttpStatus.OK)
   @Serialize(ProfileResponse)
-  @ApiOperation({ summary: 'Get user profile by ID' })
+  @ApiOperation({
+    summary: 'Get user profile by ID (public profiles accessible without auth)',
+  })
   async getProfile(
     @Param('userId') userId: string,
     @currentUser() user?: currentUserType,
@@ -61,7 +69,9 @@ export class ProfileController {
   @HttpCode(HttpStatus.OK)
   @Serialize(ProfileResponse)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Create or update profile' })
+  @ApiOperation({
+    summary: 'Create or update own profile (requires authentication)',
+  })
   async updateProfile(
     @currentUser() user: currentUserType,
     @Body() data: UpdateProfileRequest,
@@ -75,8 +85,19 @@ export class ProfileController {
   @HttpCode(HttpStatus.OK)
   @Serialize(UploadResponse)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Upload profile picture' })
+  @ApiOperation({ summary: 'Upload profile picture (requires authentication)' })
   @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
   async uploadProfilePicture(
     @currentUser() user: currentUserType,
     @UploadedFile(
@@ -84,11 +105,13 @@ export class ProfileController {
         validators: [
           new MaxFileSizeValidator({
             maxSize: PROFILE_CONSTANTS.UPLOAD.MAX_PROFILE_PICTURE_SIZE,
+            message: `File size must not exceed ${PROFILE_CONSTANTS.UPLOAD.MAX_PROFILE_PICTURE_SIZE / 1024 / 1024}MB`,
           }),
           new FileTypeValidator({
             fileType: /(jpg|jpeg|png|webp)$/,
           }),
         ],
+        fileIsRequired: true,
       }),
     )
     file: Express.Multer.File,
@@ -102,8 +125,19 @@ export class ProfileController {
   @HttpCode(HttpStatus.OK)
   @Serialize(UploadResponse)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Upload cover photo' })
+  @ApiOperation({ summary: 'Upload cover photo (requires authentication)' })
   @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
   async uploadCoverPhoto(
     @currentUser() user: currentUserType,
     @UploadedFile(
@@ -111,11 +145,13 @@ export class ProfileController {
         validators: [
           new MaxFileSizeValidator({
             maxSize: PROFILE_CONSTANTS.UPLOAD.MAX_COVER_PHOTO_SIZE,
+            message: `File size must not exceed ${PROFILE_CONSTANTS.UPLOAD.MAX_COVER_PHOTO_SIZE / 1024 / 1024}MB`,
           }),
           new FileTypeValidator({
             fileType: /(jpg|jpeg|png|webp)$/,
           }),
         ],
+        fileIsRequired: true,
       }),
     )
     file: Express.Multer.File,
@@ -128,7 +164,9 @@ export class ProfileController {
   @HttpCode(HttpStatus.OK)
   @Serialize(ProfileResponse)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Update privacy settings' })
+  @ApiOperation({
+    summary: 'Update privacy settings (requires authentication)',
+  })
   async updatePrivacySettings(
     @currentUser() user: currentUserType,
     @Body() data: UpdatePrivacyRequest,
@@ -140,7 +178,7 @@ export class ProfileController {
   @UseGuards(JwtAuthenticationGuard)
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Delete profile' })
+  @ApiOperation({ summary: 'Delete own profile (requires authentication)' })
   async deleteProfile(@currentUser() user: currentUserType) {
     return await this.profileService.deleteProfile(user.id);
   }
