@@ -1,0 +1,132 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  name          String?
+  image         String?
+  password      String?
+  emailVerified Boolean  @default(false)
+  active        Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  Session Session[]
+  Otp     Otp[]
+  Profile Profile?
+}
+
+model Session {
+  id     String        @id @default(uuid())
+  status SessionStatus @default(ACTIVE)
+  refreshToken  String?
+
+  ipAddress String?
+  userAgent String?
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum SessionStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Otp {
+  id           String    @id @default(uuid())
+  otpHash      String
+  otpExpiresAt DateTime
+  otpVerified  Boolean   @default(false)
+
+  type         OtpType
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([otpExpiresAt])
+}
+
+enum OtpType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+model Profile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  bio         String?  @db.Text
+  coverPhoto  String?
+  dateOfBirth DateTime?
+  location    String?
+  website     String?
+  phoneNumber String?
+  
+  // Privacy settings
+  privacySettings ProfilePrivacy?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ProfilePrivacy {
+  id        String   @id @default(uuid())
+  profileId String   @unique
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  // Who can see profile information
+  profileVisibility   VisibilityType @default(FRIENDS)
+  postsVisibility     VisibilityType @default(FRIENDS)
+  friendsVisibility   VisibilityType @default(FRIENDS)
+  bioVisibility       VisibilityType @default(FRIENDS)
+  emailVisibility     VisibilityType @default(PRIVATE)
+  phoneVisibility     VisibilityType @default(PRIVATE)
+  locationVisibility  VisibilityType @default(FRIENDS)
+  dateOfBirthVisibility VisibilityType @default(FRIENDS)
+  
+  // Who can interact
+  whoCanSendFriendRequests VisibilityType @default(EVERYONE)
+  whoCanMessageMe          VisibilityType @default(FRIENDS)
+  
+  // Media permissions
+  allowCameraAccess      Boolean @default(false)
+  allowMicrophoneAccess  Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId])
+}
+
+enum VisibilityType {
+  PUBLIC
+  FRIENDS
+  FRIENDS_OF_FRIENDS
+  ONLY_ME
+  PRIVATE
+  EVERYONE
+  CUSTOM
+}
