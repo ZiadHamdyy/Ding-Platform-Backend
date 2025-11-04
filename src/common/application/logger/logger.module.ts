@@ -14,8 +14,10 @@ import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
       providers: [ConfigService],
       inject: [ConfigService],
       useFactory: (config: ConfigService): any => {
-        const isProduction = config.get('NODE_ENV') === 'production';
-        const isTest = config.get('NODE_ENV') === 'test';
+        // Check both ConfigService and process.env for environment detection
+        const nodeEnv = config.get('NODE_ENV') || process.env.NODE_ENV || 'development';
+        const isProduction = nodeEnv === 'production';
+        const isTest = nodeEnv === 'test';
 
         // Custom response serializer that includes status code
         const customResSerializer = (res: any) => {

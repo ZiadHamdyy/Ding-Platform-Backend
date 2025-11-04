@@ -14,12 +14,22 @@ import { APP_CONSTANTS } from './common/constants';
 import * as path from 'path';
 
 function initializeLogging() {
+  // Skip file logging in serverless environments (Vercel, AWS Lambda, etc.)
+  if (process.env.VERCEL === '1') {
+    return;
+  }
+
   const logDir = 'logs';
-  if (!existsSync(logDir)) {
-    mkdirSync(logDir, { recursive: true });
-    writeFile(`${logDir}/logs.out`, '', (err) => {
-      if (err) console.log(err);
-    });
+  try {
+    if (!existsSync(logDir)) {
+      mkdirSync(logDir, { recursive: true });
+      writeFile(`${logDir}/logs.out`, '', (err) => {
+        if (err) console.log(err);
+      });
+    }
+  } catch (error) {
+    // Silently fail in environments where filesystem is read-only
+    console.warn('Could not initialize file logging:', error.message);
   }
 }
 
