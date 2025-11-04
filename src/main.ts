@@ -51,19 +51,30 @@ function setupRateLimiter(app: NestExpressApplication) {
 }
 
 function setupStaticFileServing(app: NestExpressApplication) {
+  // Skip static file serving setup in serverless environments (Vercel)
+  // In serverless, files should be served via cloud storage (S3, Cloudinary, etc.)
+  if (process.env.VERCEL === '1') {
+    console.log('Static file serving skipped in serverless environment');
+    return;
+  }
+
   // Get upload directory from environment or use default
   const uploadDir = get('UPLOAD_DIR').default('./uploads').asString();
   const uploadPath = path.resolve(uploadDir);
 
   // Ensure upload directory exists
-  if (!existsSync(uploadPath)) {
-    mkdirSync(uploadPath, { recursive: true });
+  try {
+    if (!existsSync(uploadPath)) {
+      mkdirSync(uploadPath, { recursive: true });
+    }
+
+    // Serve static files from uploads directory
+    app.use('/uploads', staticMiddleware(uploadPath));
+    console.log(`Static file serving enabled for: ${uploadPath}`);
+  } catch (error) {
+    // Silently fail in environments where filesystem is read-only
+    console.warn('Could not setup static file serving:', error.message);
   }
-
-  // Serve static files from uploads directory
-  app.use('/uploads', staticMiddleware(uploadPath));
-
-  console.log(`Static file serving enabled for: ${uploadPath}`);
 }
 
 function setupGlobalFilters(app: NestExpressApplication) {
@@ -97,7 +108,13 @@ function setupSwagger(app: NestExpressApplication) {
   });
 }
 
-async function bootstrap(): Promise<void> {
+let cachedApp: NestExpressApplication;
+
+async function bootstrap(): Promise<NestExpressApplication> {
+  if (cachedApp) {
+    return cachedApp;
+  }
+
   if (get('NODE_ENV').asString() === 'production') initializeLogging();
 
   const frontendUrl = get('FRONTEND_URL').default('http://localhost:5173').asString();
@@ -121,10 +138,31 @@ async function bootstrap(): Promise<void> {
 
   if (get('NODE_ENV').asString() === 'production') setupRateLimiter(app);
 
-  const port = get('PORT').default('3000').asString();
-  await app.listen(port);
+  // Initialize the app (without calling listen) for serverless
+  await app.init();
 
-  console.log(`Application is running on: http://localhost:${port}`);
-  console.log(`Swagger documentation available at: http://localhost:${port}/${APP_CONSTANTS.API.DOCS_PATH}`);
+  // Only listen in non-serverless environments
+  if (process.env.VERCEL !== '1') {
+    const port = get('PORT').default('3000').asString();
+    await app.listen(port);
+    console.log(`Application is running on: http://localhost:${port}`);
+    console.log(`Swagger documentation available at: http://localhost:${port}/${APP_CONSTANTS.API.DOCS_PATH}`);
+  }
+
+  cachedApp = app;
+  return app;
 }
-bootstrap();
+
+// For Vercel serverless functions
+if (process.env.VERCEL === '1') {
+  // Export the handler for Vercel
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  module.exports = async (req: any, res: any) => {
+    const app = await bootstrap();
+    const expressApp = app.getHttpAdapter().getInstance();
+    expressApp(req, res);
+  };
+} else {
+  // For local development and other environments
+  bootstrap();
+}
