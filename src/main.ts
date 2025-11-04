@@ -159,7 +159,7 @@ if (process.env.VERCEL === '1') {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   module.exports = async (req: any, res: any) => {
     const app = await bootstrap();
-    const expressApp = app.getHttpAdapter().getInstance();
+    const expressApp = app.getHttpAdapter().getInstance() as any;
     expressApp(req, res);
   };
 } else {
