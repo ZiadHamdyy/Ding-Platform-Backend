@@ -13,6 +13,8 @@ import { ContextModule } from './common/application/context/context.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { SessionModule } from './modules/session/session.module';
+import { ProfileModule } from './modules/profile/profile.module';
+import { CloudinaryModule } from './common/services/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { SessionModule } from './modules/session/session.module';
     AuthModule,
     UserModule,
     SessionModule,
+    ProfileModule,
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [
