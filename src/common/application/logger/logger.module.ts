@@ -44,15 +44,16 @@ import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
           autoLogging: {
             ignore: (req: any) => {
               // Don't log health checks or static assets
-              return req.url?.includes('/health') || 
-                     req.url?.includes('/api/docs') ||
-                     req.url?.match(/\.(ico|png|jpg|jpeg|gif|svg|css|js)$/);
+              return (
+                req.url?.includes('/health') ||
+                req.url?.includes('/api/docs') ||
+                req.url?.match(/\.(ico|png|jpg|jpeg|gif|svg|css|js)$/)
+              );
             },
           },
         };
 
-        // Development configuration with pino-pretty
-        if (!isProduction) {
+        if (!isProduction && process.env.VERCEL !== '1') {
           return {
             pinoHttp: {
               ...baseConfig,
@@ -75,9 +76,7 @@ import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
         const logDir = path.join(process.cwd(), 'logs');
         if (fs.existsSync(logDir)) {
           streams.push({
-            stream: fs.createWriteStream(
-              path.join(logDir, 'logs.out'),
-            ),
+            stream: fs.createWriteStream(path.join(logDir, 'logs.out')),
           });
         }
 
