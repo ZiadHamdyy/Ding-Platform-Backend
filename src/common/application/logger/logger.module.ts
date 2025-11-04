@@ -54,9 +54,11 @@ import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
                     },
                     {
                       stream: createWriteStream({
-                        dsn: config.get('SENTRY_DNS'),
+                        sentry: {
+                          dsn: config.get('SENTRY_DNS'),
+                        },
                         serverName: config.get('SERVER_NAME'),
-                      }),
+                      } as any),
                     },
                   ]),
                 ),
