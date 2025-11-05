@@ -9,8 +9,9 @@ import {
   Post,
   UseGuards,
   Res,
+  Req,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { SignupRequest } from './dtos/request/signup.request';
 import { AuthResponse } from './dtos/responses/auth.response';
@@ -54,9 +55,10 @@ export class AuthController {
     @currentUser() user: currentUserType,
     @clientIp() ipAddress: string,
     @userAgent() userAgent: string,
+    @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return await this.authService.loginWithCookie(user, ipAddress, userAgent, response);
+    return await this.authService.loginWithCookie(user, ipAddress, userAgent, request, response);
   }
 
   @Post('refresh')
@@ -133,9 +135,10 @@ export class AuthController {
     @Body() verifyEmailRequest: VerifyEmailRequest,
     @clientIp() ipAddress: string,
     @userAgent() userAgent: string,
+    @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return await this.authService.verifyEmail(verifyEmailRequest, ipAddress, userAgent, response);
+    return await this.authService.verifyEmail(verifyEmailRequest, ipAddress, userAgent, request, response);
   }
 
   @Post('resend-verification')

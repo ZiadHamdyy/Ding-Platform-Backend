@@ -14,7 +14,7 @@ import { ForgotPasswordRequest } from './dtos/request/forgot-password.request';
 import { VerifyForgotPasswordRequest } from './dtos/request/verify-forgot-password.request';
 import { ResetPasswordRequest } from './dtos/request/reset-password.request';
 import { UpdatePasswordRequest } from './dtos/request/update-password.request';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 
 @Injectable()
 export class AuthService {
@@ -94,7 +94,13 @@ export class AuthService {
     return user;
   }
 
-  async login(user: User, ipAddress?: string, userAgent?: string) {
+  async login(
+    user: User,
+    ipAddress?: string,
+    userAgent?: string,
+    request?: Request,
+    response?: Response,
+  ) {
     // Only enforce session limit if IP and user agent are provided and match existing sessions
     if (ipAddress && userAgent) {
       // Check if user has 5 or more active sessions with the same IP and user agent
@@ -122,6 +128,24 @@ export class AuthService {
         });
 
         if (oldestSession) {
+          // Check if the deleted session matches the client's refresh token cookie
+          if (request && response && oldestSession.refreshToken) {
+            const refreshTokenFromCookie = request.cookies?.[TOKEN_CONSTANTS.COOKIE.REFRESH_TOKEN_NAME];
+            
+            if (refreshTokenFromCookie) {
+              // Compare the cookie's refresh token with the deleted session's hashed refresh token
+              const isMatch = await this.helperService.comparePassword(
+                refreshTokenFromCookie,
+                oldestSession.refreshToken,
+              );
+
+              // If they match, clear the cookie since this session is being deleted
+              if (isMatch) {
+                this.clearRefreshTokenCookie(response);
+              }
+            }
+          }
+
           await this.prisma.session.delete({
             where: { id: oldestSession.id },
           });
@@ -152,9 +176,10 @@ export class AuthService {
     user: User,
     ipAddress: string,
     userAgent: string,
+    request: Request,
     response: Response,
   ) {
-    const result = await this.login(user, ipAddress, userAgent);
+    const result = await this.login(user, ipAddress, userAgent, request, response);
     
     // Set HttpOnly cookie for refresh token
     this.setRefreshTokenCookie(response, result.refreshToken);
@@ -696,7 +721,7 @@ export class AuthService {
     };
   }
 
-  async verifyEmail(request: { email: string; otp: string }, ipAddress?: string, userAgent?: string, response?: any) {
+  async verifyEmail(request: { email: string; otp: string }, ipAddress?: string, userAgent?: string, httpRequest?: Request, response?: Response) {
     const { email, otp } = request;
 
     // Find user by email
@@ -772,8 +797,8 @@ export class AuthService {
     });
 
     // Create session and log user in
-    if (ipAddress && userAgent) {
-      return await this.loginWithCookie(updatedUser, ipAddress, userAgent, response);
+    if (ipAddress && userAgent && httpRequest && response) {
+      return await this.loginWithCookie(updatedUser, ipAddress, userAgent, httpRequest, response);
     }
 
     // If no session creation, return user without tokens (same as login structure)
