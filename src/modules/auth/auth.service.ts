@@ -95,9 +95,10 @@ export class AuthService {
   }
 
   async login(user: User, ipAddress?: string, userAgent?: string) {
-    // Check if user already has an active session with the same IP and user agent
+    // Only enforce session limit if IP and user agent are provided and match existing sessions
     if (ipAddress && userAgent) {
-      const existingSession = await this.prisma.session.findFirst({
+      // Check if user has 5 or more active sessions with the same IP and user agent
+      const sameIpUserAgentSessionCount = await this.prisma.session.count({
         where: {
           userId: user.id,
           ipAddress: ipAddress,
@@ -106,40 +107,28 @@ export class AuthService {
         },
       });
 
-      if (existingSession) {
-        // Delete the existing session and create a new one
-        await this.prisma.session.delete({
-          where: { id: existingSession.id },
+      // If user has 5 or more sessions with the same IP/userAgent, delete the oldest one
+      if (sameIpUserAgentSessionCount >= 5) {
+        const oldestSession = await this.prisma.session.findFirst({
+          where: {
+            userId: user.id,
+            ipAddress: ipAddress,
+            userAgent: userAgent,
+            status: 'ACTIVE',
+          },
+          orderBy: {
+            createdAt: 'asc', // Get the oldest session with this IP/userAgent combo
+          },
         });
+
+        if (oldestSession) {
+          await this.prisma.session.delete({
+            where: { id: oldestSession.id },
+          });
+        }
       }
     }
-
-    // Check if user has 5 or more active sessions
-    const activeSessionCount = await this.prisma.session.count({
-      where: {
-        userId: user.id,
-        status: 'ACTIVE',
-      },
-    });
-
-    // If user has 5 or more active sessions, delete the oldest one
-    if (activeSessionCount >= 5) {
-      const oldestSession = await this.prisma.session.findFirst({
-        where: {
-          userId: user.id,
-          status: 'ACTIVE',
-        },
-        orderBy: {
-          createdAt: 'asc', // Get the oldest session
-        },
-      });
-
-      if (oldestSession) {
-        await this.prisma.session.delete({
-          where: { id: oldestSession.id },
-        });
-      }
-    }
+    // If IP or userAgent are not provided, allow unlimited sessions (no limit check)
 
     // Generate refresh token first
     const refreshToken = this.generateRefreshToken({
