@@ -120,9 +120,14 @@ async function bootstrap(): Promise<NestExpressApplication> {
   const frontendUrl = get('FRONTEND_URL').default('http://localhost:5173').asString();
   const isProduction = get('NODE_ENV').asString() === 'production';
 
+  // Build allowed origins array: always include frontendUrl and localhost:5173
+  const allowedOrigins = [frontendUrl, 'http://localhost:5173'];
+  // Remove duplicates in case frontendUrl is already localhost:5173
+  const uniqueOrigins = Array.from(new Set(allowedOrigins));
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     cors: {
-      origin: isProduction ? frontendUrl : true, // Allow all in dev, restrict in prod
+      origin: isProduction ? uniqueOrigins : true, // Allow all in dev, restrict to specific origins in prod
       credentials: true, // Enable cookies/credentials
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
