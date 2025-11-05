@@ -114,6 +114,33 @@ export class AuthService {
       }
     }
 
+    // Check if user has 5 or more active sessions
+    const activeSessionCount = await this.prisma.session.count({
+      where: {
+        userId: user.id,
+        status: 'ACTIVE',
+      },
+    });
+
+    // If user has 5 or more active sessions, delete the oldest one
+    if (activeSessionCount >= 5) {
+      const oldestSession = await this.prisma.session.findFirst({
+        where: {
+          userId: user.id,
+          status: 'ACTIVE',
+        },
+        orderBy: {
+          createdAt: 'asc', // Get the oldest session
+        },
+      });
+
+      if (oldestSession) {
+        await this.prisma.session.delete({
+          where: { id: oldestSession.id },
+        });
+      }
+    }
+
     // Generate refresh token first
     const refreshToken = this.generateRefreshToken({
       userId: user.id,
