@@ -125,9 +125,11 @@ async function bootstrap(): Promise<NestExpressApplication> {
     frontendUrl,
     'http://localhost:5173',
     'https://ding-gray.vercel.app', // Production frontend URL
+    // Add any additional frontend URLs from environment if needed
+    ...(process.env.FRONTEND_URLS ? process.env.FRONTEND_URLS.split(',') : []),
   ];
-  // Remove duplicates
-  const uniqueOrigins = Array.from(new Set(allowedOrigins));
+  // Remove duplicates and filter out empty strings
+  const uniqueOrigins = Array.from(new Set(allowedOrigins.filter(Boolean)));
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     cors: {

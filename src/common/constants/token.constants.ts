@@ -24,7 +24,9 @@ export const TOKEN_CONSTANTS = {
     PATH: '/',
     HTTP_ONLY: true,
     SECURE: process.env.NODE_ENV === 'production',
-    SAME_SITE: process.env.NODE_ENV === 'production' ? 'strict' : 'lax' as const,
+    // Use 'lax' instead of 'strict' to allow cookies on cross-site requests
+    // 'lax' allows cookies on top-level navigations and GET requests from other sites
+    SAME_SITE: 'lax' as const,
   },
 
   // Session Configuration
