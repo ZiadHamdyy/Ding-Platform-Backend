@@ -18,6 +18,8 @@ import {
   MessageResponse,
   FriendResponse,
   FriendsListResponse,
+  RecommendedUserResponse,
+  RecommendationsListResponse,
 } from './dtos/response/social.response';
 
 @Controller('social')
@@ -140,6 +142,69 @@ export class SocialController {
     return {
       data: following,
       count: following.length,
+    };
+  }
+
+  // Recommendations
+  @Get('recommendations/friends')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(RecommendationsListResponse, RecommendedUserResponse)
+  async getFriendRecommendations(
+    @currentUser() user: currentUserType,
+    @Query('limit') limit?: string,
+  ) {
+    // Parse limit from query string and convert to number
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    const recommendations = await this.socialservice.getFriendRecommendations(
+      user.id,
+      limitNum,
+    );
+    return {
+      data: recommendations,
+      count: recommendations.length,
+    };
+  }
+
+  @Get('recommendations/follow')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(RecommendationsListResponse, RecommendedUserResponse)
+  async getFollowerRecommendations(
+    @currentUser() user: currentUserType,
+    @Query('limit') limit?: string,
+  ) {
+    // Parse limit from query string and convert to number
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    const recommendations = await this.socialservice.getFollowerRecommendations(
+      user.id,
+      limitNum,
+    );
+    return {
+      data: recommendations,
+      count: recommendations.length,
+    };
+  }
+
+  // Stats
+  @Get('stats')
+  @HttpCode(HttpStatus.OK)
+  async getNetworkStats(@currentUser() user: currentUserType) {
+    return this.socialservice.getUserNetworkStats(user.id);
+  }
+
+  @Get('mutual-friends/:userId')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(FriendsListResponse, FriendResponse)
+  async getMutualFriends(
+    @Param('userId') userId: string,
+    @currentUser() user: currentUserType,
+  ) {
+    const mutualFriends = await this.socialservice.getMutualFriends(
+      user.id,
+      userId,
+    );
+    return {
+      data: mutualFriends,
+      count: mutualFriends.length,
     };
   }
 }

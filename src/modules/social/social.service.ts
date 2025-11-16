@@ -1,7 +1,7 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { Neo4jService } from 'src/configs/neo4j/neo4j.service';
 import { DatabaseService } from 'src/configs/database/database.service';
-import { UserNode } from 'src/common/interfaces/user.interface';
+import { UserNode, RecommendedUser } from 'src/common/interfaces/user.interface';
 import { GenericHttpException } from 'src/common/application/exceptions/generic-http-exception';
 import { ERROR_MESSAGES } from 'src/common/constants/error-messages.constant';
 import neo4j from 'neo4j-driver';
@@ -698,6 +698,358 @@ export class SocialService {
         { userId },
       );
       return result.records[0].get('count').toNumber();
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Friend Recommendations based on:
+   * 1. Mutual friends (friends of friends)
+   * 2. Common followers
+   * 3. Users you follow who follow them back
+   * 4. Location matching
+   */
+  async getFriendRecommendations(userId: string, limit = 10): Promise<RecommendedUser[]> {
+    const session = this.neo4jservice.getSession();
+    try {
+      // Check if user exists in Neo4j
+      let userExists = await this.userExists(userId);
+      
+      // If user doesn't exist in Neo4j, try to create it from PostgreSQL
+      if (!userExists) {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { 
+            id: true, 
+            email: true, 
+            name: true,
+            Profile: {
+              select: {
+                location: true,
+                coverPhoto: true,
+              },
+            },
+          },
+        });
+
+        if (user) {
+          // Auto-create the node in Neo4j
+          await this.createUserNode(
+            user.id,
+            user.name || undefined,
+            user.email,
+            user.Profile?.location || undefined,
+            user.Profile?.coverPhoto || undefined,
+          );
+          userExists = true;
+        } else {
+          throw new GenericHttpException(
+            ERROR_MESSAGES.USER_NOT_FOUND_IN_SOCIAL,
+            HttpStatus.NOT_FOUND,
+          );
+        }
+      }
+
+      // Ensure limit is an integer (Neo4j requires integer, not float)
+      const limitInt = Math.floor(Number(limit)) || 10;
+      if (limitInt < 0) {
+        throw new GenericHttpException(
+          'Limit must be a non-negative integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const result = await session.run(
+        `MATCH (u:User {userId: $userId})
+         
+         // Find friends of friends (not already friends)
+         MATCH (u)-[:FRIENDS]->(friend)-[:FRIENDS]->(recommendation:User)
+         WHERE recommendation.userId <> $userId
+         AND NOT (u)-[:FRIENDS]-(recommendation)
+         
+         WITH recommendation, count(DISTINCT friend) as mutualFriends, u.location as userLocation
+         
+         // Optional: boost score if user follows them or they follow user
+         OPTIONAL MATCH (u)-[f1:FOLLOWS]->(recommendation)
+         OPTIONAL MATCH (recommendation)-[f2:FOLLOWS]->(u)
+         
+         WITH recommendation, mutualFriends, userLocation,
+              CASE WHEN f1 IS NOT NULL THEN 2 ELSE 0 END +
+              CASE WHEN f2 IS NOT NULL THEN 1 ELSE 0 END as followBoost
+         
+         // Location boost: +20 points if same location
+         WITH recommendation, mutualFriends, userLocation, followBoost,
+              CASE WHEN userLocation IS NOT NULL AND recommendation.location = userLocation THEN 20 ELSE 0 END as locationBoost
+         
+         WITH recommendation, mutualFriends, followBoost, locationBoost,
+              (mutualFriends * 10 + followBoost + locationBoost) as score
+         
+         RETURN recommendation.userId as userId,
+                recommendation.username as username,
+                recommendation.name as name,
+                recommendation.location as location,
+                mutualFriends,
+                score,
+                'mutual_friends' as reason
+         ORDER BY score DESC
+         LIMIT $limit`,
+        { userId, limit: neo4j.int(limitInt) },
+      );
+      
+      return result.records.map((r) => ({
+        userId: r.get('userId'),
+        username: r.get('username'),
+        name: r.get('name'),
+        location: r.get('location'),
+        score: r.get('score').toNumber(),
+        mutualFriends: r.get('mutualFriends').toNumber(),
+        reason: r.get('reason'),
+      }));
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      console.error('Error in getFriendRecommendations:', error);
+      throw new GenericHttpException(
+        'Failed to get friend recommendations',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Follower Recommendations based on:
+   * 1. Users followed by people you follow
+   * 2. Popular users in your network
+   * 3. Users who follow you back
+   * 4. Location matching
+   */
+  async getFollowerRecommendations(userId: string, limit = 10): Promise<RecommendedUser[]> {
+    const session = this.neo4jservice.getSession();
+    try {
+      // Check if user exists in Neo4j
+      let userExists = await this.userExists(userId);
+      
+      // If user doesn't exist in Neo4j, try to create it from PostgreSQL
+      if (!userExists) {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { 
+            id: true, 
+            email: true, 
+            name: true,
+            Profile: {
+              select: {
+                location: true,
+                coverPhoto: true,
+              },
+            },
+          },
+        });
+
+        if (user) {
+          // Auto-create the node in Neo4j
+          await this.createUserNode(
+            user.id,
+            user.name || undefined,
+            user.email,
+            user.Profile?.location || undefined,
+            user.Profile?.coverPhoto || undefined,
+          );
+          userExists = true;
+        } else {
+          throw new GenericHttpException(
+            ERROR_MESSAGES.USER_NOT_FOUND_IN_SOCIAL,
+            HttpStatus.NOT_FOUND,
+          );
+        }
+      }
+
+      // Ensure limit is an integer (Neo4j requires integer, not float)
+      const limitInt = Math.floor(Number(limit)) || 10;
+      if (limitInt < 0) {
+        throw new GenericHttpException(
+          'Limit must be a non-negative integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const result = await session.run(
+        `MATCH (u:User {userId: $userId})
+         
+         // Find users followed by people you follow
+         MATCH (u)-[:FOLLOWS]->(following)-[:FOLLOWS]->(recommendation:User)
+         WHERE recommendation.userId <> $userId
+         AND NOT (u)-[:FOLLOWS]->(recommendation)
+         
+         WITH recommendation, count(DISTINCT following) as commonFollowing, u.location as userLocation
+         
+         // Count followers of the recommendation (popularity)
+         OPTIONAL MATCH (recommendation)<-[:FOLLOWS]-(follower)
+         WITH recommendation, commonFollowing, userLocation, count(DISTINCT follower) as popularity
+         
+         // Check if they follow you back
+         OPTIONAL MATCH (recommendation)-[fb:FOLLOWS]->(u)
+         
+         WITH recommendation, commonFollowing, popularity, userLocation,
+              CASE WHEN fb IS NOT NULL THEN 5 ELSE 0 END as followBackBonus
+         
+         // Location boost: +20 points if same location
+         WITH recommendation, commonFollowing, popularity, followBackBonus, userLocation,
+              CASE WHEN userLocation IS NOT NULL AND recommendation.location = userLocation THEN 20 ELSE 0 END as locationBoost
+         
+         WITH recommendation, commonFollowing, popularity, followBackBonus, locationBoost,
+              (commonFollowing * 10 + (popularity / 10.0) + followBackBonus + locationBoost) as score
+         
+         RETURN recommendation.userId as userId,
+                recommendation.username as username,
+                recommendation.name as name,
+                recommendation.location as location,
+                commonFollowing as mutualFriends,
+                score,
+                'common_following' as reason
+         ORDER BY score DESC
+         LIMIT $limit`,
+        { userId, limit: neo4j.int(limitInt) },
+      );
+      
+      return result.records.map((r) => ({
+        userId: r.get('userId'),
+        username: r.get('username'),
+        name: r.get('name'),
+        location: r.get('location'),
+        score: r.get('score').toNumber(),
+        mutualFriends: r.get('mutualFriends').toNumber(),
+        reason: r.get('reason'),
+      }));
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      console.error('Error in getFollowerRecommendations:', error);
+      throw new GenericHttpException(
+        'Failed to get follower recommendations',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Get mutual friends between two users
+   */
+  async getMutualFriends(userId1: string, userId2: string): Promise<UserNode[]> {
+    const session = this.neo4jservice.getSession();
+    try {
+      // Check if both users exist
+      const user1Exists = await this.userExists(userId1);
+      const user2Exists = await this.userExists(userId2);
+
+      if (!user1Exists || !user2Exists) {
+        throw new GenericHttpException(
+          ERROR_MESSAGES.USER_NOT_FOUND_IN_SOCIAL,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      const result = await session.run(
+        `MATCH (u1:User {userId: $userId1})-[:FRIENDS]->(mutual:User)<-[:FRIENDS]-(u2:User {userId: $userId2})
+         RETURN mutual.userId as userId, mutual.username as username, mutual.name as name`,
+        { userId1, userId2 },
+      );
+      return result.records.map((r) => ({
+        userId: r.get('userId'),
+        username: r.get('username'),
+        name: r.get('name'),
+      }));
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      console.error('Error in getMutualFriends:', error);
+      throw new GenericHttpException(
+        'Failed to get mutual friends',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Get network stats for a user
+   */
+  async getUserNetworkStats(userId: string) {
+    const session = this.neo4jservice.getSession();
+    try {
+      // Check if user exists in Neo4j
+      let userExists = await this.userExists(userId);
+      
+      // If user doesn't exist in Neo4j, try to create it from PostgreSQL
+      if (!userExists) {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { 
+            id: true, 
+            email: true, 
+            name: true,
+            Profile: {
+              select: {
+                location: true,
+                coverPhoto: true,
+              },
+            },
+          },
+        });
+
+        if (user) {
+          // Auto-create the node in Neo4j
+          await this.createUserNode(
+            user.id,
+            user.name || undefined,
+            user.email,
+            user.Profile?.location || undefined,
+            user.Profile?.coverPhoto || undefined,
+          );
+          userExists = true;
+        } else {
+          throw new GenericHttpException(
+            ERROR_MESSAGES.USER_NOT_FOUND_IN_SOCIAL,
+            HttpStatus.NOT_FOUND,
+          );
+        }
+      }
+
+      const result = await session.run(
+        `MATCH (u:User {userId: $userId})
+         OPTIONAL MATCH (u)-[:FRIENDS]-(friend)
+         OPTIONAL MATCH (u)-[:FOLLOWS]->(following)
+         OPTIONAL MATCH (u)<-[:FOLLOWS]-(follower)
+         RETURN count(DISTINCT friend) as friendsCount,
+                count(DISTINCT following) as followingCount,
+                count(DISTINCT follower) as followersCount`,
+        { userId },
+      );
+      
+      const record = result.records[0];
+      return {
+        friendsCount: record.get('friendsCount').toNumber(),
+        followingCount: record.get('followingCount').toNumber(),
+        followersCount: record.get('followersCount').toNumber(),
+      };
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      console.error('Error in getUserNetworkStats:', error);
+      throw new GenericHttpException(
+        'Failed to get network stats',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     } finally {
       await session.close();
     }
