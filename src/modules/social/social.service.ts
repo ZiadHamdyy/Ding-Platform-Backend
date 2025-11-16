@@ -435,4 +435,271 @@ export class SocialService {
       await session.close();
     }
   }
+
+
+  async followUser(followerId: string, followeeId: string): Promise<void> {
+    // Validate: Cannot follow yourself
+    if (followerId === followeeId) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.CANNOT_FOLLOW_SELF,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const session = this.neo4jservice.getSession();
+    try {
+      // Check if both users exist
+      const followerExists = await this.userExists(followerId);
+      const followeeExists = await this.userExists(followeeId);
+
+      if (!followerExists || !followeeExists) {
+        throw new GenericHttpException(
+          ERROR_MESSAGES.USER_NOT_FOUND_IN_SOCIAL,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      await session.run(
+        `MATCH (follower:User {userId: $followerId})
+         MATCH (followee:User {userId: $followeeId})
+         MERGE (follower)-[r:FOLLOWS]->(followee)
+         SET r.createdAt = datetime()`,
+        { followerId, followeeId },
+      );
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      throw new GenericHttpException(
+        ERROR_MESSAGES.FOLLOW_FAILED,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  async unfollowUser(followerId: string, followeeId: string): Promise<void> {
+    const session = this.neo4jservice.getSession();
+    try {
+      // Check if both users exist
+      const followerExists = await this.userExists(followerId);
+      const followeeExists = await this.userExists(followeeId);
+
+      if (!followerExists || !followeeExists) {
+        throw new GenericHttpException(
+          ERROR_MESSAGES.USER_NOT_FOUND_IN_SOCIAL,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      await session.run(
+        `MATCH (follower:User {userId: $followerId})-[r:FOLLOWS]->(followee:User {userId: $followeeId})
+         DELETE r`,
+        { followerId, followeeId },
+      );
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      throw new GenericHttpException(
+        ERROR_MESSAGES.UNFOLLOW_FAILED,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getFollowers(userId: string, limit = 100): Promise<UserNode[]> {
+    const session = this.neo4jservice.getSession();
+    try {
+      // Check if user exists in Neo4j
+      let userExists = await this.userExists(userId);
+      
+      // If user doesn't exist in Neo4j, try to create it from PostgreSQL
+      if (!userExists) {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { 
+            id: true, 
+            email: true, 
+            name: true,
+            Profile: {
+              select: {
+                location: true,
+                coverPhoto: true,
+              },
+            },
+          },
+        });
+
+        if (user) {
+          // Auto-create the node in Neo4j
+          await this.createUserNode(
+            user.id,
+            user.name || undefined,
+            user.email,
+            user.Profile?.location || undefined,
+            user.Profile?.coverPhoto || undefined,
+          );
+          userExists = true;
+        } else {
+          throw new GenericHttpException(
+            ERROR_MESSAGES.USER_NOT_FOUND_IN_SOCIAL,
+            HttpStatus.NOT_FOUND,
+          );
+        }
+      }
+
+      // Ensure limit is an integer (Neo4j requires integer, not float)
+      const limitInt = Math.floor(Number(limit)) || 100;
+      if (limitInt < 0) {
+        throw new GenericHttpException(
+          'Limit must be a non-negative integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const result = await session.run(
+        `MATCH (follower:User)-[:FOLLOWS]->(u:User {userId: $userId})
+         RETURN follower.userId as userId, follower.username as username, follower.name as name
+         LIMIT $limit`,
+        { userId, limit: neo4j.int(limitInt) },
+      );
+      return result.records.map((r) => ({
+        userId: r.get('userId'),
+        username: r.get('username'),
+        name: r.get('name'),
+      }));
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      console.error('Error in getFollowers:', error);
+      throw new GenericHttpException(
+        ERROR_MESSAGES.GET_FOLLOWERS_FAILED,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getFollowing(userId: string, limit = 100): Promise<UserNode[]> {
+    const session = this.neo4jservice.getSession();
+    try {
+      // Check if user exists in Neo4j
+      let userExists = await this.userExists(userId);
+      
+      // If user doesn't exist in Neo4j, try to create it from PostgreSQL
+      if (!userExists) {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { 
+            id: true, 
+            email: true, 
+            name: true,
+            Profile: {
+              select: {
+                location: true,
+                coverPhoto: true,
+              },
+            },
+          },
+        });
+
+        if (user) {
+          // Auto-create the node in Neo4j
+          await this.createUserNode(
+            user.id,
+            user.name || undefined,
+            user.email,
+            user.Profile?.location || undefined,
+            user.Profile?.coverPhoto || undefined,
+          );
+          userExists = true;
+        } else {
+          throw new GenericHttpException(
+            ERROR_MESSAGES.USER_NOT_FOUND_IN_SOCIAL,
+            HttpStatus.NOT_FOUND,
+          );
+        }
+      }
+
+      // Ensure limit is an integer (Neo4j requires integer, not float)
+      const limitInt = Math.floor(Number(limit)) || 100;
+      if (limitInt < 0) {
+        throw new GenericHttpException(
+          'Limit must be a non-negative integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const result = await session.run(
+        `MATCH (u:User {userId: $userId})-[:FOLLOWS]->(following:User)
+         RETURN following.userId as userId, following.username as username, following.name as name
+         LIMIT $limit`,
+        { userId, limit: neo4j.int(limitInt) },
+      );
+      return result.records.map((r) => ({
+        userId: r.get('userId'),
+        username: r.get('username'),
+        name: r.get('name'),
+      }));
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      console.error('Error in getFollowing:', error);
+      throw new GenericHttpException(
+        ERROR_MESSAGES.GET_FOLLOWING_FAILED,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  async isFollowing(followerId: string, followeeId: string): Promise<boolean> {
+    const session = this.neo4jservice.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (follower:User {userId: $followerId})-[:FOLLOWS]->(followee:User {userId: $followeeId})
+         RETURN count(*) > 0 as isFollowing`,
+        { followerId, followeeId },
+      );
+      return result.records[0].get('isFollowing');
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getFollowerCount(userId: string): Promise<number> {
+    const session = this.neo4jservice.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (follower:User)-[:FOLLOWS]->(u:User {userId: $userId})
+         RETURN count(follower) as count`,
+        { userId },
+      );
+      return result.records[0].get('count').toNumber();
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getFollowingCount(userId: string): Promise<number> {
+    const session = this.neo4jservice.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (u:User {userId: $userId})-[:FOLLOWS]->(following:User)
+         RETURN count(following) as count`,
+        { userId },
+      );
+      return result.records[0].get('count').toNumber();
+    } finally {
+      await session.close();
+    }
+  }
 }

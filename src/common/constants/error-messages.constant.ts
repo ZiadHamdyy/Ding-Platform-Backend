@@ -107,6 +107,12 @@ export const ERROR_MESSAGES = {
   REMOVE_FRIEND_FAILED: 'Failed to remove friend. Please try again',
   GET_FRIENDS_FAILED: 'Failed to retrieve friends. Please try again',
   GET_FRIEND_REQUESTS_FAILED: 'Failed to retrieve friend requests. Please try again',
+
+  CANNOT_FOLLOW_SELF: 'You cannot follow yourself',
+  FOLLOW_FAILED: 'Failed to follow user. Please try again',
+  UNFOLLOW_FAILED: 'Failed to unfollow user. Please try again',
+  GET_FOLLOWERS_FAILED: 'Failed to retrieve followers. Please try again',
+  GET_FOLLOWING_FAILED: 'Failed to retrieve following list. Please try again',
 } as const;
 
 // Type for error message keys

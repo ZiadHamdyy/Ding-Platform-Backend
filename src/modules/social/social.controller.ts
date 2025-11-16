@@ -87,4 +87,59 @@ export class SocialController {
     await this.socialservice.removeFriend(user.id, userId);
     return { message: 'Friend removed' };
   }
+
+  // Followers endpoints
+  @Post('follow/:userId')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(MessageResponse)
+  async followUser(
+    @Param('userId') userId: string,
+    @currentUser() user: currentUserType,
+  ) {
+    await this.socialservice.followUser(user.id, userId);
+    return { message: 'User followed' };
+  }
+
+  @Delete('follow/:userId')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(MessageResponse)
+  async unfollowUser(
+    @Param('userId') userId: string,
+    @currentUser() user: currentUserType,
+  ) {
+    await this.socialservice.unfollowUser(user.id, userId);
+    return { message: 'User unfollowed' };
+  }
+
+  @Get('followers')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(FriendsListResponse, FriendResponse)
+  async getFollowers(
+    @currentUser() user: currentUserType,
+    @Query('limit') limit?: string,
+  ) {
+    // Parse limit from query string and convert to number
+    const limitNum = limit ? parseInt(limit, 10) : undefined;
+    const followers = await this.socialservice.getFollowers(user.id, limitNum);
+    return {
+      data: followers,
+      count: followers.length,
+    };
+  }
+
+  @Get('following')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(FriendsListResponse, FriendResponse)
+  async getFollowing(
+    @currentUser() user: currentUserType,
+    @Query('limit') limit?: string,
+  ) {
+    // Parse limit from query string and convert to number
+    const limitNum = limit ? parseInt(limit, 10) : undefined;
+    const following = await this.socialservice.getFollowing(user.id, limitNum);
+    return {
+      data: following,
+      count: following.length,
+    };
+  }
 }
