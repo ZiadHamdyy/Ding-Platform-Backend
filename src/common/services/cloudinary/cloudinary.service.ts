@@ -20,7 +20,7 @@ export class CloudinaryService {
     userId: string,
   ): Promise<string> {
     // Validate file type
-    if (!PROFILE_CONSTANTS.UPLOAD.ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+    if (!PROFILE_CONSTANTS.UPLOAD.ALLOWED_IMAGE_TYPES.includes(file.mimetype as typeof PROFILE_CONSTANTS.UPLOAD.ALLOWED_IMAGE_TYPES[number])) {
       throw new BadRequestException(PROFILE_ERROR_MESSAGES.INVALID_FILE_TYPE);
     }
 
@@ -56,7 +56,7 @@ export class CloudinaryService {
     userId: string,
   ): Promise<string> {
     // Validate file type
-    if (!PROFILE_CONSTANTS.UPLOAD.ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+    if (!PROFILE_CONSTANTS.UPLOAD.ALLOWED_IMAGE_TYPES.includes(file.mimetype as typeof PROFILE_CONSTANTS.UPLOAD.ALLOWED_IMAGE_TYPES[number])) {
       throw new BadRequestException(PROFILE_ERROR_MESSAGES.INVALID_FILE_TYPE);
     }
 

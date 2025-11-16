@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   postgres:
     image: postgres:15
@@ -29,11 +27,16 @@ services:
       - .env
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - NEO4J_URI=${NEO4J_URI}
+      - NEO4J_AUTH=${NEO4J_AUTH}
     volumes:
       - .:/app
       - /app/node_modules
     depends_on:
-      - postgres
+      postgres:
+        condition: service_started
+      neo4j:
+        condition: service_started
     networks:
       - ding-dev-network
     stdin_open: true
@@ -51,6 +54,22 @@ services:
     volumes:
       - ../Ding-Platform-Frontend:/app
       - /app/node_modules
+  neo4j:
+    image: neo4j:latest
+    container_name: ding-neo4j-dev
+    restart: always
+    ports:
+      - '7474:7474'
+      - '7687:7687'
+    environment:
+      - NEO4J_AUTH=${NEO4J_AUTH}
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+    volumes:
+      - neo4j_data_dev:/data
+    networks:
+      - ding-dev-network
+
   prisma-studio:
     build:
       context: .
@@ -75,6 +94,7 @@ services:
 
 volumes:
   pgdata_dev:
+  neo4j_data_dev:
 
 networks:
   ding-dev-network:

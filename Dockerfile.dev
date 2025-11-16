@@ -8,14 +8,14 @@ RUN npm install -g pnpm
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies
+# Copy Prisma schema (needed for postinstall script)
+COPY prisma ./prisma
+
+# Install dependencies (postinstall will run prisma generate)
 RUN pnpm install
 
 # Copy source code
 COPY . .
-
-# Generate Prisma client
-RUN pnpm prisma generate
 
 # Expose port
 EXPOSE 3000

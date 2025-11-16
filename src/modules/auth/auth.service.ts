@@ -14,7 +14,7 @@ import { ForgotPasswordRequest } from './dtos/request/forgot-password.request';
 import { VerifyForgotPasswordRequest } from './dtos/request/verify-forgot-password.request';
 import { ResetPasswordRequest } from './dtos/request/reset-password.request';
 import { UpdatePasswordRequest } from './dtos/request/update-password.request';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 
 @Injectable()
 export class AuthService {
@@ -94,10 +94,25 @@ export class AuthService {
     return user;
   }
 
-  async login(user: User, ipAddress?: string, userAgent?: string) {
-    // Check if user already has an active session with the same IP and user agent
+  async login(
+    user: User,
+    ipAddress?: string,
+    userAgent?: string,
+    request?: Request,
+    response?: Response,
+  ) {
+    // Check if email is verified
+    if (!user.emailVerified) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.EMAIL_NOT_VERIFIED,
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    // Only enforce session limit if IP and user agent are provided and match existing sessions
     if (ipAddress && userAgent) {
-      const existingSession = await this.prisma.session.findFirst({
+      // Check if user has 5 or more active sessions with the same IP and user agent
+      const sameIpUserAgentSessionCount = await this.prisma.session.count({
         where: {
           userId: user.id,
           ipAddress: ipAddress,
@@ -106,13 +121,46 @@ export class AuthService {
         },
       });
 
-      if (existingSession) {
-        // Delete the existing session and create a new one
-        await this.prisma.session.delete({
-          where: { id: existingSession.id },
+      // If user has 5 or more sessions with the same IP/userAgent, delete the oldest one
+      if (sameIpUserAgentSessionCount >= 5) {
+        const oldestSession = await this.prisma.session.findFirst({
+          where: {
+            userId: user.id,
+            ipAddress: ipAddress,
+            userAgent: userAgent,
+            status: 'ACTIVE',
+          },
+          orderBy: {
+            createdAt: 'asc', // Get the oldest session with this IP/userAgent combo
+          },
         });
+
+        if (oldestSession) {
+          // Check if the deleted session matches the client's refresh token cookie
+          if (request && response && oldestSession.refreshToken) {
+            const refreshTokenFromCookie = request.cookies?.[TOKEN_CONSTANTS.COOKIE.REFRESH_TOKEN_NAME];
+            
+            if (refreshTokenFromCookie) {
+              // Compare the cookie's refresh token with the deleted session's hashed refresh token
+              const isMatch = await this.helperService.comparePassword(
+                refreshTokenFromCookie,
+                oldestSession.refreshToken,
+              );
+
+              // If they match, clear the cookie since this session is being deleted
+              if (isMatch) {
+                this.clearRefreshTokenCookie(response);
+              }
+            }
+          }
+
+          await this.prisma.session.delete({
+            where: { id: oldestSession.id },
+          });
+        }
       }
     }
+    // If IP or userAgent are not provided, allow unlimited sessions (no limit check)
 
     // Generate refresh token first
     const refreshToken = this.generateRefreshToken({
@@ -136,9 +184,10 @@ export class AuthService {
     user: User,
     ipAddress: string,
     userAgent: string,
+    request: Request,
     response: Response,
   ) {
-    const result = await this.login(user, ipAddress, userAgent);
+    const result = await this.login(user, ipAddress, userAgent, request, response);
     
     // Set HttpOnly cookie for refresh token
     this.setRefreshTokenCookie(response, result.refreshToken);
@@ -295,7 +344,12 @@ export class AuthService {
   }
 
   private clearRefreshTokenCookie(response: Response): void {
-    response.clearCookie(TOKEN_CONSTANTS.COOKIE.REFRESH_TOKEN_NAME);
+    response.clearCookie(TOKEN_CONSTANTS.COOKIE.REFRESH_TOKEN_NAME, {
+      httpOnly: TOKEN_CONSTANTS.COOKIE.HTTP_ONLY,
+      secure: TOKEN_CONSTANTS.COOKIE.SECURE,
+      sameSite: TOKEN_CONSTANTS.COOKIE.SAME_SITE,
+      path: TOKEN_CONSTANTS.COOKIE.PATH,
+    });
   }
 
   // Password Recovery Methods
@@ -675,7 +729,7 @@ export class AuthService {
     };
   }
 
-  async verifyEmail(request: { email: string; otp: string }, ipAddress?: string, userAgent?: string, response?: any) {
+  async verifyEmail(request: { email: string; otp: string }, ipAddress?: string, userAgent?: string, httpRequest?: Request, response?: Response) {
     const { email, otp } = request;
 
     // Find user by email
@@ -751,8 +805,8 @@ export class AuthService {
     });
 
     // Create session and log user in
-    if (ipAddress && userAgent) {
-      return await this.loginWithCookie(updatedUser, ipAddress, userAgent, response);
+    if (ipAddress && userAgent && httpRequest && response) {
+      return await this.loginWithCookie(updatedUser, ipAddress, userAgent, httpRequest, response);
     }
 
     // If no session creation, return user without tokens (same as login structure)
