@@ -120,9 +120,20 @@ async function bootstrap(): Promise<NestExpressApplication> {
   const frontendUrl = get('FRONTEND_URL').default('http://localhost:5173').asString();
   const isProduction = get('NODE_ENV').asString() === 'production';
 
+  // Build allowed origins array: include frontendUrl from env, localhost:5173 for dev, and production frontend
+  const allowedOrigins = [
+    frontendUrl,
+    'http://localhost:5173',
+    'https://ding-gray.vercel.app', // Production frontend URL
+    // Add any additional frontend URLs from environment if needed
+    ...(process.env.FRONTEND_URLS ? process.env.FRONTEND_URLS.split(',') : []),
+  ];
+  // Remove duplicates and filter out empty strings
+  const uniqueOrigins = Array.from(new Set(allowedOrigins.filter(Boolean)));
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     cors: {
-      origin: isProduction ? frontendUrl : true, // Allow all in dev, restrict in prod
+      origin: isProduction ? uniqueOrigins : true, // Allow all in dev, restrict to specific origins in prod
       credentials: true, // Enable cookies/credentials
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
