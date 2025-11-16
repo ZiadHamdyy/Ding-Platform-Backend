@@ -84,6 +84,7 @@ export const ERROR_MESSAGES = {
   // Email Verification Messages
   EMAIL_VERIFICATION_SUCCESS: 'Email verified successfully',
   EMAIL_ALREADY_VERIFIED: 'Email is already verified',
+  EMAIL_NOT_VERIFIED: 'Please verify your email before logging in',
   SIGNUP_SUCCESS: 'Signup successful. Please check your email to verify your account.',
 
   // Session Messages
@@ -92,6 +93,20 @@ export const ERROR_MESSAGES = {
   // Resend Verification Messages
   VERIFICATION_CODE_RESENT: 'Verification code has been resent to your email',
   FORGOT_PASSWORD_CODE_RESENT: 'Password reset code has been resent to your email',
+
+  // Social Errors
+  CANNOT_SEND_FRIEND_REQUEST_TO_SELF: 'You cannot send a friend request to yourself',
+  USER_NOT_FOUND_IN_SOCIAL: 'User not found',
+  ALREADY_FRIENDS: 'You are already friends with this user',
+  FRIEND_REQUEST_ALREADY_SENT: 'Friend request has already been sent',
+  FRIEND_REQUEST_NOT_FOUND: 'Friend request not found',
+  ALREADY_HAVE_FRIEND_REQUEST: 'You already have a pending friend request from this user',
+  NOT_FRIENDS: 'You are not friends with this user',
+  FRIEND_REQUEST_FAILED: 'Failed to send friend request. Please try again',
+  ACCEPT_FRIEND_REQUEST_FAILED: 'Failed to accept friend request. Please try again',
+  REMOVE_FRIEND_FAILED: 'Failed to remove friend. Please try again',
+  GET_FRIENDS_FAILED: 'Failed to retrieve friends. Please try again',
+  GET_FRIEND_REQUESTS_FAILED: 'Failed to retrieve friend requests. Please try again',
 } as const;
 
 // Type for error message keys

@@ -6,12 +6,14 @@ import { CreateUserRequest } from './dtos/request/create-user.request';
 import { UserListFilterInput } from './dtos/request/user-filter.input';
 import { HelperService } from '../../common/utils/helper/helper.service';
 import { ERROR_MESSAGES } from '../../common/constants/error-messages.constant';
+import { SocialService } from '../social/social.service';
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly prisma: DatabaseService,
     private readonly helperService: HelperService,
+    private readonly socialService: SocialService,
   ) {}
 
   async getAllUsers(filters?: UserListFilterInput) {
@@ -180,6 +182,14 @@ export class UserService {
     await this.prisma.session.deleteMany({
       where: { userId },
     });
+
+    // Delete Neo4j node
+    try {
+      await this.socialService.deleteUserNode(userId);
+    } catch (error) {
+      // Log error but don't fail user deletion if Neo4j fails
+      console.error('Failed to delete Neo4j node for user:', error);
+    }
 
     // Delete the user
     await this.prisma.user.delete({

@@ -101,6 +101,14 @@ export class AuthService {
     request?: Request,
     response?: Response,
   ) {
+    // Check if email is verified
+    if (!user.emailVerified) {
+      throw new GenericHttpException(
+        ERROR_MESSAGES.EMAIL_NOT_VERIFIED,
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     // Only enforce session limit if IP and user agent are provided and match existing sessions
     if (ipAddress && userAgent) {
       // Check if user has 5 or more active sessions with the same IP and user agent

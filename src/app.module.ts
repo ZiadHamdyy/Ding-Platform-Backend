@@ -16,6 +16,7 @@ import { UserModule } from './modules/user/user.module';
 import { SessionModule } from './modules/session/session.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { CloudinaryModule } from './common/services/cloudinary/cloudinary.module';
+import { SocialModule } from './modules/social/social.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { CloudinaryModule } from './common/services/cloudinary/cloudinary.module
     SessionModule,
     ProfileModule,
     CloudinaryModule,
+    SocialModule,
   ],
   controllers: [AppController],
   providers: [
