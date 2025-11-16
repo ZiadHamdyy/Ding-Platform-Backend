@@ -57,12 +57,12 @@ export class SocialController {
   @Post('friends/request/:toUserId')
   @HttpCode(HttpStatus.OK)
   @Serialize(MessageResponse)
-  async sendFriendRequest(
+  async toggleSendFriendRequest(
     @Param('toUserId') toUserId: string,
     @currentUser() user: currentUserType,
   ) {
-    await this.socialservice.sendFriendRequest(user.id, toUserId);
-    return { message: 'Friend request sent' };
+    await this.socialservice.toggleSendFriendRequest(user.id, toUserId);
+    return { message: 'Friend request toggled' };
   }
 
   @Post('friends/accept/:fromUserId')

@@ -87,7 +87,7 @@ export class SocialService {
     }
   }
 
-  async sendFriendRequest(fromUserId: string, toUserId: string): Promise<void> {
+  async toggleSendFriendRequest(fromUserId: string, toUserId: string): Promise<void> {
     // Validate: Cannot send friend request to yourself
     if (fromUserId === toUserId) {
       throw new GenericHttpException(
@@ -118,15 +118,6 @@ export class SocialService {
         );
       }
 
-      // Check if friend request already exists
-      const requestExists = await this.friendRequestExists(fromUserId, toUserId);
-      if (requestExists) {
-        throw new GenericHttpException(
-          ERROR_MESSAGES.FRIEND_REQUEST_ALREADY_SENT,
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
       // Check if there's a reverse friend request (they sent you one)
       const reverseRequestExists = await this.friendRequestExists(
         toUserId,
@@ -139,14 +130,25 @@ export class SocialService {
         );
       }
 
-      // Create friend request
-      await session.run(
-        `MATCH (from:User {userId: $fromUserId})
-             MATCH (to:User {userId: $toUserId})
-             MERGE (from)-[r:FRIEND_REQUEST]->(to)
-             SET r.createdAt = datetime()`,
-        { fromUserId, toUserId },
-      );
+      // Check if friend request already exists - if so, delete it (toggle off)
+      const requestExists = await this.friendRequestExists(fromUserId, toUserId);
+      if (requestExists) {
+        // Delete the existing friend request
+        await session.run(
+          `MATCH (from:User {userId: $fromUserId})-[r:FRIEND_REQUEST]->(to:User {userId: $toUserId})
+               DELETE r`,
+          { fromUserId, toUserId },
+        );
+      } else {
+        // Create friend request (toggle on)
+        await session.run(
+          `MATCH (from:User {userId: $fromUserId})
+               MATCH (to:User {userId: $toUserId})
+               MERGE (from)-[r:FRIEND_REQUEST]->(to)
+               SET r.createdAt = datetime()`,
+          { fromUserId, toUserId },
+        );
+      }
     } catch (error) {
       if (error instanceof GenericHttpException) {
         throw error;
