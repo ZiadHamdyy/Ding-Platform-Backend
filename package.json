@@ -50,6 +50,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
+    "neo4j-driver": "^5.20.0",
     "nestjs-pino": "^4.4.1",
     "nodemailer": "^7.0.9",
     "passport": "^0.7.0",
