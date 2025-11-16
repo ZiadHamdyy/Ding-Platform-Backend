@@ -193,6 +193,16 @@ const developerAccounts: DeveloperAccount[] = [
     email: 'ziadhamdy667@gmail.com',
     password: 'Password#1',
   },
+  {
+    name: 'Ziad',
+    email: 'ziad.fathi.seleem@gmail.com',
+    password: 'Ziad@123',
+  },
+  {
+    name: 'Zack River',
+    email: 'zackriver.dev@gmail.com',
+    password: '*A01201024880z#',
+  },
   // Add more developers here in the future
 ];
 
