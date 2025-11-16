@@ -13,12 +13,14 @@ import { PROFILE_CONSTANTS } from '../../common/constants/profile.constants';
 import { UpdateProfileRequest } from './dtos/request/update-profile.request';
 import { UpdatePrivacyRequest } from './dtos/request/update-privacy.request';
 import { SearchProfileRequest } from './dtos/request/search-profile.request';
+import { SocialService } from '../social/social.service';
 
 @Injectable()
 export class ProfileService {
   constructor(
     private readonly prisma: DatabaseService,
     private readonly cloudinaryService: CloudinaryService,
+    private readonly socialService: SocialService,
   ) {}
 
   /**
@@ -98,7 +100,7 @@ export class ProfileService {
       }
 
       // Create new profile with default privacy settings
-      return await this.prisma.profile.create({
+      const profile = await this.prisma.profile.create({
         data: {
           userId,
           bio: data.bio,
@@ -143,6 +145,22 @@ export class ProfileService {
           },
         },
       });
+
+      // Create corresponding node in Neo4j
+      try {
+        await this.socialService.createUserNode(
+          profile.user.id,
+          profile.user.name || undefined,
+          profile.user.email, // Use email as username
+          profile.location || undefined,
+          profile.coverPhoto || undefined,
+        );
+      } catch (error) {
+        // Log error but don't fail profile creation if Neo4j fails
+        console.error('Failed to create Neo4j node for user:', error);
+      }
+
+      return profile;
     } catch (error) {
       console.error('Profile create/update error:', error);
       throw new GenericHttpException(

@@ -21,6 +21,6 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "prisma/**/*"],
   "typeRoots": ["./node_modules/@types", "./src/types"]
 }
