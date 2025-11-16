@@ -62,6 +62,11 @@ export class RefreshTokenGuard implements CanActivate {
   }
 
   private clearRefreshTokenCookie(response: Response): void {
-    response.clearCookie(TOKEN_CONSTANTS.COOKIE.REFRESH_TOKEN_NAME);
+    response.clearCookie(TOKEN_CONSTANTS.COOKIE.REFRESH_TOKEN_NAME, {
+      httpOnly: TOKEN_CONSTANTS.COOKIE.HTTP_ONLY,
+      secure: TOKEN_CONSTANTS.COOKIE.SECURE,
+      sameSite: TOKEN_CONSTANTS.COOKIE.SAME_SITE,
+      path: TOKEN_CONSTANTS.COOKIE.PATH,
+    });
   }
 }
