@@ -34,6 +34,7 @@ import { clientIp } from '../../common/decorators/client-ip.decorator';
 import { userAgent } from '../../common/decorators/user-agent.decorator';
 import type { currentUserType } from '../../common/types/current-user.type';
 import { UserResponse } from '../../modules/user/dtos/response/user.response';
+import { GoogleAuthGuard } from '../../common/guards/strategy.guards/google.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -58,7 +59,38 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return await this.authService.loginWithCookie(user, ipAddress, userAgent, request, response);
+    return await this.authService.loginWithCookie(
+      user,
+      ipAddress,
+      userAgent,
+      request,
+      response,
+    );
+  }
+
+  @Get('google')
+  @UseGuards(GoogleAuthGuard)
+  async googleAuth() {
+    // Guard redirects to Google
+  }
+
+  @Get('google/callback')
+  @UseGuards(GoogleAuthGuard)
+  @Serialize(AuthResponse)
+  async googleAuthRedirect(
+    @currentUser() user: any,
+    @clientIp() ipAddress: string,
+    @userAgent() userAgent: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return await this.authService.googleLogin(
+      user,
+      ipAddress,
+      userAgent,
+      request,
+      response,
+    );
   }
 
   @Post('refresh')
@@ -69,7 +101,10 @@ export class AuthController {
     @RefreshToken() refreshToken: string,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return await this.authService.refreshTokensWithCookie(refreshToken, response);
+    return await this.authService.refreshTokensWithCookie(
+      refreshToken,
+      response,
+    );
   }
 
   @Delete('logout')
@@ -79,7 +114,11 @@ export class AuthController {
     @currentUser() user: currentUserType,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return await this.authService.logoutWithCookie(user, user.session?.id, response);
+    return await this.authService.logoutWithCookie(
+      user,
+      user.session?.id,
+      response,
+    );
   }
 
   @Delete('logout-all')
@@ -108,8 +147,12 @@ export class AuthController {
 
   @Patch('verify-forgot-password')
   @HttpCode(HttpStatus.OK)
-  async verifyForgotPassword(@Body() verifyForgotPasswordRequest: VerifyForgotPasswordRequest) {
-    return await this.authService.verifyForgotPassword(verifyForgotPasswordRequest);
+  async verifyForgotPassword(
+    @Body() verifyForgotPasswordRequest: VerifyForgotPasswordRequest,
+  ) {
+    return await this.authService.verifyForgotPassword(
+      verifyForgotPasswordRequest,
+    );
   }
 
   @Patch('reset-password')
@@ -138,18 +181,32 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return await this.authService.verifyEmail(verifyEmailRequest, ipAddress, userAgent, request, response);
+    return await this.authService.verifyEmail(
+      verifyEmailRequest,
+      ipAddress,
+      userAgent,
+      request,
+      response,
+    );
   }
 
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
-  async resendVerification(@Body() resendVerificationRequest: ResendVerificationRequest) {
-    return await this.authService.resendVerificationCode(resendVerificationRequest);
+  async resendVerification(
+    @Body() resendVerificationRequest: ResendVerificationRequest,
+  ) {
+    return await this.authService.resendVerificationCode(
+      resendVerificationRequest,
+    );
   }
 
   @Post('resend-forgot-password')
   @HttpCode(HttpStatus.OK)
-  async resendForgotPassword(@Body() resendForgotPasswordRequest: ResendForgotPasswordRequest) {
-    return await this.authService.resendForgotPasswordCode(resendForgotPasswordRequest);
+  async resendForgotPassword(
+    @Body() resendForgotPasswordRequest: ResendForgotPasswordRequest,
+  ) {
+    return await this.authService.resendForgotPasswordCode(
+      resendForgotPasswordRequest,
+    );
   }
 }
