@@ -31,12 +31,15 @@ export class SocialController {
   @Get('friends/requests')
   @HttpCode(HttpStatus.OK)
   @Serialize(FriendsListResponse, FriendResponse)
-  async getFriendRequests(@currentUser() user: currentUserType) {
-    const requests = await this.socialservice.getFriendRequests(user.id);
-    return {
-      data: requests,
-      count: requests.length,
-    };
+  async getFriendRequests(
+    @currentUser() user: currentUserType,
+    @Query('offset') offset?: string,
+    @Query('limit') limit?: string,
+  ) {
+    // Parse offset and limit from query string and convert to numbers
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return await this.socialservice.getFriendRequests(user.id, offsetNum, limitNum);
   }
 
   @Get('friends')

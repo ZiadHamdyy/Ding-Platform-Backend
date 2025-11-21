@@ -453,7 +453,20 @@ export class SocialService {
     }
   }
 
-  async getFriendRequests(userId: string): Promise<UserNode[]> {
+  async getFriendRequests(
+    userId: string,
+    offset = 0,
+    limit = 10,
+  ): Promise<{
+    data: UserNode[];
+    meta: {
+      limit: number;
+      offset: number;
+      total: number;
+      hasMore: boolean;
+      nextOffset: number | null;
+    };
+  }> {
     const session = this.neo4jservice.getSession();
     try {
       // Check if user exists in Neo4j
@@ -494,16 +507,61 @@ export class SocialService {
         }
       }
 
-      const result = await session.run(
+      // Ensure offset and limit are integers (Neo4j requires integer, not float)
+      const offsetInt = Math.floor(Number(offset)) || 0;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      
+      if (offsetInt < 0) {
+        throw new GenericHttpException(
+          'Offset must be a non-negative integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      
+      if (limitInt < 1) {
+        throw new GenericHttpException(
+          'Limit must be a positive integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Get total count of friend requests
+      const countResult = await session.run(
         `MATCH (from:User)-[:FRIEND_REQUEST]->(to:User {userId: $userId})
-             RETURN from.userId as userId, from.username as username, from.name as name`,
+             RETURN count(from) as total`,
         { userId },
       );
-      return result.records.map((r) => ({
+      const total = this.toNumber(countResult.records[0]?.get('total') || 0);
+
+      // Use Neo4j's integer type to ensure it's sent as an integer, not a float
+      const result = await session.run(
+        `MATCH (from:User)-[:FRIEND_REQUEST]->(to:User {userId: $userId})
+             RETURN from.userId as userId, from.username as username, from.name as name
+             SKIP $offset
+             LIMIT $limit`,
+        { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
+      );
+      
+      const requests = result.records.map((r) => ({
         userId: r.get('userId'),
         username: r.get('username'),
         name: r.get('name'),
       }));
+
+      // Calculate pagination metadata
+      const hasMore = offsetInt + limitInt < total;
+      const nextOffset = hasMore ? offsetInt + limitInt : null;
+
+      return {
+        data: requests,
+        meta: {
+          limit: limitInt,
+          offset: offsetInt,
+          total,
+          hasMore,
+          nextOffset,
+        },
+      };
     } catch (error) {
       if (error instanceof GenericHttpException) {
         throw error;
