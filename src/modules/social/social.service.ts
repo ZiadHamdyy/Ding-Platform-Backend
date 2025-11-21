@@ -33,37 +33,6 @@ export class SocialService {
   }
 
   /**
-   * Mark users as recommended so they won't appear in future recommendations
-   */
-  private async markUsersAsRecommended(
-    userId: string,
-    recommendedUserIds: string[],
-    recommendationType: 'FRIEND' | 'FOLLOW',
-  ): Promise<void> {
-    if (recommendedUserIds.length === 0) return;
-
-    const session = this.neo4jservice.getSession();
-    try {
-      const relationshipType =
-        recommendationType === 'FRIEND'
-          ? 'RECOMMENDED_FRIEND'
-          : 'RECOMMENDED_FOLLOW';
-      
-      // Create relationships to mark these users as recommended (batch operation)
-      await session.run(
-        `MATCH (u:User {userId: $userId})
-         UNWIND $recommendedUserIds as recommendedUserId
-         MATCH (r:User {userId: recommendedUserId})
-         MERGE (u)-[rel:${relationshipType}]->(r)
-         SET rel.createdAt = datetime()`,
-        { userId, recommendedUserIds },
-      );
-    } finally {
-      await session.close();
-    }
-  }
-
-  /**
    * Check if a user node exists in Neo4j
    */
   private async userExists(userId: string): Promise<boolean> {
@@ -1041,7 +1010,6 @@ export class SocialService {
          MATCH (u)-[:FRIENDS]->(friend)-[:FRIENDS]->(recommendation:User)
          WHERE recommendation.userId <> $userId
          AND NOT (u)-[:FRIENDS]-(recommendation)
-         AND NOT (u)-[:RECOMMENDED_FRIEND]->(recommendation)
          
          WITH DISTINCT recommendation
          RETURN count(recommendation) as total`,
@@ -1056,15 +1024,15 @@ export class SocialService {
          MATCH (u)-[:FRIENDS]->(friend)-[:FRIENDS]->(recommendation:User)
          WHERE recommendation.userId <> $userId
          AND NOT (u)-[:FRIENDS]-(recommendation)
-         AND NOT (u)-[:RECOMMENDED_FRIEND]->(recommendation)
          
-         WITH recommendation, count(DISTINCT friend) as mutualFriends, u.location as userLocation
+         WITH recommendation, count(DISTINCT friend) as mutualFriends
          
-         // Optional: boost score if user follows them or they follow user
+         // Re-match user for optional follows check
+         MATCH (u:User {userId: $userId})
          OPTIONAL MATCH (u)-[f1:FOLLOWS]->(recommendation)
          OPTIONAL MATCH (recommendation)-[f2:FOLLOWS]->(u)
          
-         WITH recommendation, mutualFriends, userLocation,
+         WITH recommendation, mutualFriends, u.location as userLocation,
               CASE WHEN f1 IS NOT NULL THEN 2 ELSE 0 END +
               CASE WHEN f2 IS NOT NULL THEN 1 ELSE 0 END as followBoost
          
@@ -1105,19 +1073,6 @@ export class SocialService {
         }
       });
       const recommendations = Array.from(recommendationsMap.values());
-
-      // Mark these users as recommended so they won't appear again
-      if (recommendations.length > 0) {
-        const recommendedUserIds = recommendations.map((r) => r.userId);
-        await session.run(
-          `MATCH (u:User {userId: $userId})
-           UNWIND $recommendedUserIds as recommendedUserId
-           MATCH (r:User {userId: recommendedUserId})
-           MERGE (u)-[rel:RECOMMENDED_FRIEND]->(r)
-           SET rel.createdAt = datetime()`,
-          { userId, recommendedUserIds },
-        );
-      }
 
       // Calculate pagination metadata
       const hasMore = offsetInt + limitInt < total;
@@ -1234,7 +1189,6 @@ export class SocialService {
          MATCH (u)-[:FOLLOWS]->(following)-[:FOLLOWS]->(recommendation:User)
          WHERE recommendation.userId <> $userId
          AND NOT (u)-[:FOLLOWS]->(recommendation)
-         AND NOT (u)-[:RECOMMENDED_FOLLOW]->(recommendation)
          
          WITH DISTINCT recommendation
          RETURN count(recommendation) as total`,
@@ -1249,18 +1203,20 @@ export class SocialService {
          MATCH (u)-[:FOLLOWS]->(following)-[:FOLLOWS]->(recommendation:User)
          WHERE recommendation.userId <> $userId
          AND NOT (u)-[:FOLLOWS]->(recommendation)
-         AND NOT (u)-[:RECOMMENDED_FOLLOW]->(recommendation)
          
-         WITH recommendation, count(DISTINCT following) as commonFollowing, u.location as userLocation
+         WITH recommendation, count(DISTINCT following) as commonFollowing
+         
+         // Re-match user for location and follow-back check
+         MATCH (u:User {userId: $userId})
          
          // Count followers of the recommendation (popularity)
          OPTIONAL MATCH (recommendation)<-[:FOLLOWS]-(follower)
-         WITH recommendation, commonFollowing, userLocation, count(DISTINCT follower) as popularity
+         WITH recommendation, commonFollowing, u, count(DISTINCT follower) as popularity
          
          // Check if they follow you back
          OPTIONAL MATCH (recommendation)-[fb:FOLLOWS]->(u)
          
-         WITH recommendation, commonFollowing, popularity, userLocation,
+         WITH recommendation, commonFollowing, popularity, u.location as userLocation,
               CASE WHEN fb IS NOT NULL THEN 5 ELSE 0 END as followBackBonus
          
          // Location boost: +20 points if same location
@@ -1300,19 +1256,6 @@ export class SocialService {
         }
       });
       const recommendations = Array.from(recommendationsMap.values());
-
-      // Mark these users as recommended so they won't appear again
-      if (recommendations.length > 0) {
-        const recommendedUserIds = recommendations.map((r) => r.userId);
-        await session.run(
-          `MATCH (u:User {userId: $userId})
-           UNWIND $recommendedUserIds as recommendedUserId
-           MATCH (r:User {userId: recommendedUserId})
-           MERGE (u)-[rel:RECOMMENDED_FOLLOW]->(r)
-           SET rel.createdAt = datetime()`,
-          { userId, recommendedUserIds },
-        );
-      }
 
       // Calculate pagination metadata
       const hasMore = offsetInt + limitInt < total;
