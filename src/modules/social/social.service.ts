@@ -1154,7 +1154,20 @@ export class SocialService {
    * 3. Users who follow you back
    * 4. Location matching
    */
-  async getFollowerRecommendations(userId: string, limit = 10): Promise<RecommendedUser[]> {
+  async getFollowerRecommendations(
+    userId: string,
+    offset = 0,
+    limit = 10,
+  ): Promise<{
+    data: RecommendedUser[];
+    meta: {
+      limit: number;
+      offset: number;
+      total: number;
+      hasMore: boolean;
+      nextOffset: number | null;
+    };
+  }> {
     const session = this.neo4jservice.getSession();
     try {
       // Check if user exists in Neo4j
@@ -1195,14 +1208,39 @@ export class SocialService {
         }
       }
 
-      // Ensure limit is an integer (Neo4j requires integer, not float)
+      // Ensure offset and limit are integers (Neo4j requires integer, not float)
+      const offsetInt = Math.floor(Number(offset)) || 0;
       const limitInt = Math.floor(Number(limit)) || 10;
-      if (limitInt < 0) {
+      
+      if (offsetInt < 0) {
         throw new GenericHttpException(
-          'Limit must be a non-negative integer',
+          'Offset must be a non-negative integer',
           HttpStatus.BAD_REQUEST,
         );
       }
+      
+      if (limitInt < 1) {
+        throw new GenericHttpException(
+          'Limit must be a positive integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Get total count of recommendations (before pagination)
+      const countResult = await session.run(
+        `MATCH (u:User {userId: $userId})
+         
+         // Find users followed by people you follow
+         MATCH (u)-[:FOLLOWS]->(following)-[:FOLLOWS]->(recommendation:User)
+         WHERE recommendation.userId <> $userId
+         AND NOT (u)-[:FOLLOWS]->(recommendation)
+         AND NOT (u)-[:RECOMMENDED_FOLLOW]->(recommendation)
+         
+         WITH DISTINCT recommendation
+         RETURN count(recommendation) as total`,
+        { userId },
+      );
+      const total = this.toNumber(countResult.records[0]?.get('total') || 0);
 
       const result = await session.run(
         `MATCH (u:User {userId: $userId})
@@ -1240,8 +1278,9 @@ export class SocialService {
                 score,
                 'common_following' as reason
          ORDER BY score DESC
+         SKIP $offset
          LIMIT $limit`,
-        { userId, limit: neo4j.int(limitInt) },
+        { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
       
       // Map results and deduplicate by userId (in case of any duplicates)
@@ -1275,7 +1314,20 @@ export class SocialService {
         );
       }
 
-      return recommendations;
+      // Calculate pagination metadata
+      const hasMore = offsetInt + limitInt < total;
+      const nextOffset = hasMore ? offsetInt + limitInt : null;
+
+      return {
+        data: recommendations,
+        meta: {
+          limit: limitInt,
+          offset: offsetInt,
+          total,
+          hasMore,
+          nextOffset,
+        },
+      };
     } catch (error) {
       if (error instanceof GenericHttpException) {
         throw error;
