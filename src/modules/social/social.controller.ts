@@ -31,12 +31,15 @@ export class SocialController {
   @Get('friends/requests')
   @HttpCode(HttpStatus.OK)
   @Serialize(FriendsListResponse, FriendResponse)
-  async getFriendRequests(@currentUser() user: currentUserType) {
-    const requests = await this.socialservice.getFriendRequests(user.id);
-    return {
-      data: requests,
-      count: requests.length,
-    };
+  async getFriendRequests(
+    @currentUser() user: currentUserType,
+    @Query('offset') offset?: string,
+    @Query('limit') limit?: string,
+  ) {
+    // Parse offset and limit from query string and convert to numbers
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return await this.socialservice.getFriendRequests(user.id, offsetNum, limitNum);
   }
 
   @Get('friends')
@@ -44,15 +47,13 @@ export class SocialController {
   @Serialize(FriendsListResponse, FriendResponse)
   async getFriends(
     @currentUser() user: currentUserType,
+    @Query('offset') offset?: string,
     @Query('limit') limit?: string,
   ) {
-    // Parse limit from query string and convert to number
-    const limitNum = limit ? parseInt(limit, 10) : undefined;
-    const friends = await this.socialservice.getFriends(user.id, limitNum);
-    return {
-      data: friends,
-      count: friends.length,
-    };
+    // Parse offset and limit from query string and convert to numbers
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return await this.socialservice.getFriends(user.id, offsetNum, limitNum);
   }
 
   // POST routes - parameterized routes
@@ -118,15 +119,13 @@ export class SocialController {
   @Serialize(FriendsListResponse, FriendResponse)
   async getFollowers(
     @currentUser() user: currentUserType,
+    @Query('offset') offset?: string,
     @Query('limit') limit?: string,
   ) {
-    // Parse limit from query string and convert to number
-    const limitNum = limit ? parseInt(limit, 10) : undefined;
-    const followers = await this.socialservice.getFollowers(user.id, limitNum);
-    return {
-      data: followers,
-      count: followers.length,
-    };
+    // Parse offset and limit from query string and convert to numbers
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return await this.socialservice.getFollowers(user.id, offsetNum, limitNum);
   }
 
   @Get('following')
@@ -134,15 +133,13 @@ export class SocialController {
   @Serialize(FriendsListResponse, FriendResponse)
   async getFollowing(
     @currentUser() user: currentUserType,
+    @Query('offset') offset?: string,
     @Query('limit') limit?: string,
   ) {
-    // Parse limit from query string and convert to number
-    const limitNum = limit ? parseInt(limit, 10) : undefined;
-    const following = await this.socialservice.getFollowing(user.id, limitNum);
-    return {
-      data: following,
-      count: following.length,
-    };
+    // Parse offset and limit from query string and convert to numbers
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return await this.socialservice.getFollowing(user.id, offsetNum, limitNum);
   }
 
   // Recommendations
@@ -151,18 +148,17 @@ export class SocialController {
   @Serialize(RecommendationsListResponse, RecommendedUserResponse)
   async getFriendRecommendations(
     @currentUser() user: currentUserType,
+    @Query('offset') offset?: string,
     @Query('limit') limit?: string,
   ) {
-    // Parse limit from query string and convert to number
+    // Parse offset and limit from query string and convert to numbers
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
     const limitNum = limit ? parseInt(limit, 10) : 10;
-    const recommendations = await this.socialservice.getFriendRecommendations(
+    return await this.socialservice.getFriendRecommendations(
       user.id,
+      offsetNum,
       limitNum,
     );
-    return {
-      data: recommendations,
-      count: recommendations.length,
-    };
   }
 
   @Get('recommendations/follow')
@@ -170,18 +166,17 @@ export class SocialController {
   @Serialize(RecommendationsListResponse, RecommendedUserResponse)
   async getFollowerRecommendations(
     @currentUser() user: currentUserType,
+    @Query('offset') offset?: string,
     @Query('limit') limit?: string,
   ) {
-    // Parse limit from query string and convert to number
+    // Parse offset and limit from query string and convert to numbers
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
     const limitNum = limit ? parseInt(limit, 10) : 10;
-    const recommendations = await this.socialservice.getFollowerRecommendations(
+    return await this.socialservice.getFollowerRecommendations(
       user.id,
+      offsetNum,
       limitNum,
     );
-    return {
-      data: recommendations,
-      count: recommendations.length,
-    };
   }
 
   // Stats
@@ -197,14 +192,17 @@ export class SocialController {
   async getMutualFriends(
     @Param('userId') userId: string,
     @currentUser() user: currentUserType,
+    @Query('offset') offset?: string,
+    @Query('limit') limit?: string,
   ) {
-    const mutualFriends = await this.socialservice.getMutualFriends(
+    // Parse offset and limit from query string and convert to numbers
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return await this.socialservice.getMutualFriends(
       user.id,
       userId,
+      offsetNum,
+      limitNum,
     );
-    return {
-      data: mutualFriends,
-      count: mutualFriends.length,
-    };
   }
 }
