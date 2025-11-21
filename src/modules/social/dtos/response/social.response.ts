@@ -67,12 +67,30 @@ export class RecommendedUserResponse implements RecommendedUser {
   location?: string;
 }
 
+class RecommendationsListMeta {
+  @Expose()
+  limit: number;
+
+  @Expose()
+  offset: number;
+
+  @Expose()
+  total: number;
+
+  @Expose()
+  hasMore: boolean;
+
+  @Expose()
+  nextOffset: number | null;
+}
+
 export class RecommendationsListResponse {
   @Expose()
   @Type(() => RecommendedUserResponse)
   data: RecommendedUserResponse[];
 
   @Expose()
-  count: number;
+  @Type(() => RecommendationsListMeta)
+  meta: RecommendationsListMeta;
 }
 

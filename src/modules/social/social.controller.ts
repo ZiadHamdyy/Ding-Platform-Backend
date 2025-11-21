@@ -148,18 +148,17 @@ export class SocialController {
   @Serialize(RecommendationsListResponse, RecommendedUserResponse)
   async getFriendRecommendations(
     @currentUser() user: currentUserType,
+    @Query('offset') offset?: string,
     @Query('limit') limit?: string,
   ) {
-    // Parse limit from query string and convert to number
+    // Parse offset and limit from query string and convert to numbers
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
     const limitNum = limit ? parseInt(limit, 10) : 10;
-    const recommendations = await this.socialservice.getFriendRecommendations(
+    return await this.socialservice.getFriendRecommendations(
       user.id,
+      offsetNum,
       limitNum,
     );
-    return {
-      data: recommendations,
-      count: recommendations.length,
-    };
   }
 
   @Get('recommendations/follow')
