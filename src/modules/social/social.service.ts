@@ -14,6 +14,25 @@ export class SocialService {
   ) {}
 
   /**
+   * Safely convert Neo4j Integer or Float to JavaScript number
+   */
+  private toNumber(value: any): number {
+    if (value == null) {
+      return 0;
+    }
+    // Neo4j Integer has toNumber() method
+    if (typeof value.toNumber === 'function') {
+      return value.toNumber();
+    }
+    // Already a number (Float or regular number)
+    if (typeof value === 'number') {
+      return value;
+    }
+    // Fallback: try to parse as number
+    return Number(value) || 0;
+  }
+
+  /**
    * Check if a user node exists in Neo4j
    */
   private async userExists(userId: string): Promise<boolean> {
@@ -279,7 +298,20 @@ export class SocialService {
     }
   }
 
-  async getFriends(userId: string, limit = 100): Promise<UserNode[]> {
+  async getFriends(
+    userId: string,
+    offset = 0,
+    limit = 10,
+  ): Promise<{
+    data: UserNode[];
+    meta: {
+      limit: number;
+      offset: number;
+      total: number;
+      hasMore: boolean;
+      nextOffset: number | null;
+    };
+  }> {
     const session = this.neo4jservice.getSession();
     try {
       // Check if user exists in Neo4j
@@ -320,27 +352,61 @@ export class SocialService {
         }
       }
 
-      // Ensure limit is an integer (Neo4j requires integer, not float)
-      const limitInt = Math.floor(Number(limit)) || 100;
-      if (limitInt < 0) {
+      // Ensure offset and limit are integers (Neo4j requires integer, not float)
+      const offsetInt = Math.floor(Number(offset)) || 0;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      
+      if (offsetInt < 0) {
         throw new GenericHttpException(
-          'Limit must be a non-negative integer',
+          'Offset must be a non-negative integer',
           HttpStatus.BAD_REQUEST,
         );
       }
+      
+      if (limitInt < 1) {
+        throw new GenericHttpException(
+          'Limit must be a positive integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Get total count of friends
+      const countResult = await session.run(
+        `MATCH (u:User {userId: $userId})-[:FRIENDS]->(friend:User)
+             RETURN count(friend) as total`,
+        { userId },
+      );
+      const total = this.toNumber(countResult.records[0]?.get('total') || 0);
 
       // Use Neo4j's integer type to ensure it's sent as an integer, not a float
       const result = await session.run(
         `MATCH (u:User {userId: $userId})-[:FRIENDS]->(friend:User)
              RETURN friend.userId as userId, friend.username as username, friend.name as name
+             SKIP $offset
              LIMIT $limit`,
-        { userId, limit: neo4j.int(limitInt) },
+        { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
-      return result.records.map((r) => ({
+      
+      const friends = result.records.map((r) => ({
         userId: r.get('userId'),
         username: r.get('username'),
         name: r.get('name'),
       }));
+
+      // Calculate pagination metadata
+      const hasMore = offsetInt + limitInt < total;
+      const nextOffset = hasMore ? offsetInt + limitInt : null;
+
+      return {
+        data: friends,
+        meta: {
+          limit: limitInt,
+          offset: offsetInt,
+          total,
+          hasMore,
+          nextOffset,
+        },
+      };
     } catch (error) {
       if (error instanceof GenericHttpException) {
         throw error;
@@ -356,7 +422,20 @@ export class SocialService {
     }
   }
 
-  async getFriendRequests(userId: string): Promise<UserNode[]> {
+  async getFriendRequests(
+    userId: string,
+    offset = 0,
+    limit = 10,
+  ): Promise<{
+    data: UserNode[];
+    meta: {
+      limit: number;
+      offset: number;
+      total: number;
+      hasMore: boolean;
+      nextOffset: number | null;
+    };
+  }> {
     const session = this.neo4jservice.getSession();
     try {
       // Check if user exists in Neo4j
@@ -397,16 +476,61 @@ export class SocialService {
         }
       }
 
-      const result = await session.run(
+      // Ensure offset and limit are integers (Neo4j requires integer, not float)
+      const offsetInt = Math.floor(Number(offset)) || 0;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      
+      if (offsetInt < 0) {
+        throw new GenericHttpException(
+          'Offset must be a non-negative integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      
+      if (limitInt < 1) {
+        throw new GenericHttpException(
+          'Limit must be a positive integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Get total count of friend requests
+      const countResult = await session.run(
         `MATCH (from:User)-[:FRIEND_REQUEST]->(to:User {userId: $userId})
-             RETURN from.userId as userId, from.username as username, from.name as name`,
+             RETURN count(from) as total`,
         { userId },
       );
-      return result.records.map((r) => ({
+      const total = this.toNumber(countResult.records[0]?.get('total') || 0);
+
+      // Use Neo4j's integer type to ensure it's sent as an integer, not a float
+      const result = await session.run(
+        `MATCH (from:User)-[:FRIEND_REQUEST]->(to:User {userId: $userId})
+             RETURN from.userId as userId, from.username as username, from.name as name
+             SKIP $offset
+             LIMIT $limit`,
+        { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
+      );
+      
+      const requests = result.records.map((r) => ({
         userId: r.get('userId'),
         username: r.get('username'),
         name: r.get('name'),
       }));
+
+      // Calculate pagination metadata
+      const hasMore = offsetInt + limitInt < total;
+      const nextOffset = hasMore ? offsetInt + limitInt : null;
+
+      return {
+        data: requests,
+        meta: {
+          limit: limitInt,
+          offset: offsetInt,
+          total,
+          hasMore,
+          nextOffset,
+        },
+      };
     } catch (error) {
       if (error instanceof GenericHttpException) {
         throw error;
@@ -511,7 +635,20 @@ export class SocialService {
     }
   }
 
-  async getFollowers(userId: string, limit = 100): Promise<UserNode[]> {
+  async getFollowers(
+    userId: string,
+    offset = 0,
+    limit = 10,
+  ): Promise<{
+    data: UserNode[];
+    meta: {
+      limit: number;
+      offset: number;
+      total: number;
+      hasMore: boolean;
+      nextOffset: number | null;
+    };
+  }> {
     const session = this.neo4jservice.getSession();
     try {
       // Check if user exists in Neo4j
@@ -552,26 +689,61 @@ export class SocialService {
         }
       }
 
-      // Ensure limit is an integer (Neo4j requires integer, not float)
-      const limitInt = Math.floor(Number(limit)) || 100;
-      if (limitInt < 0) {
+      // Ensure offset and limit are integers (Neo4j requires integer, not float)
+      const offsetInt = Math.floor(Number(offset)) || 0;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      
+      if (offsetInt < 0) {
         throw new GenericHttpException(
-          'Limit must be a non-negative integer',
+          'Offset must be a non-negative integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      
+      if (limitInt < 1) {
+        throw new GenericHttpException(
+          'Limit must be a positive integer',
           HttpStatus.BAD_REQUEST,
         );
       }
 
+      // Get total count of followers
+      const countResult = await session.run(
+        `MATCH (follower:User)-[:FOLLOWS]->(u:User {userId: $userId})
+         RETURN count(follower) as total`,
+        { userId },
+      );
+      const total = this.toNumber(countResult.records[0]?.get('total') || 0);
+
+      // Use Neo4j's integer type to ensure it's sent as an integer, not a float
       const result = await session.run(
         `MATCH (follower:User)-[:FOLLOWS]->(u:User {userId: $userId})
          RETURN follower.userId as userId, follower.username as username, follower.name as name
+         SKIP $offset
          LIMIT $limit`,
-        { userId, limit: neo4j.int(limitInt) },
+        { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
-      return result.records.map((r) => ({
+      
+      const followers = result.records.map((r) => ({
         userId: r.get('userId'),
         username: r.get('username'),
         name: r.get('name'),
       }));
+
+      // Calculate pagination metadata
+      const hasMore = offsetInt + limitInt < total;
+      const nextOffset = hasMore ? offsetInt + limitInt : null;
+
+      return {
+        data: followers,
+        meta: {
+          limit: limitInt,
+          offset: offsetInt,
+          total,
+          hasMore,
+          nextOffset,
+        },
+      };
     } catch (error) {
       if (error instanceof GenericHttpException) {
         throw error;
@@ -586,7 +758,20 @@ export class SocialService {
     }
   }
 
-  async getFollowing(userId: string, limit = 100): Promise<UserNode[]> {
+  async getFollowing(
+    userId: string,
+    offset = 0,
+    limit = 10,
+  ): Promise<{
+    data: UserNode[];
+    meta: {
+      limit: number;
+      offset: number;
+      total: number;
+      hasMore: boolean;
+      nextOffset: number | null;
+    };
+  }> {
     const session = this.neo4jservice.getSession();
     try {
       // Check if user exists in Neo4j
@@ -627,26 +812,61 @@ export class SocialService {
         }
       }
 
-      // Ensure limit is an integer (Neo4j requires integer, not float)
-      const limitInt = Math.floor(Number(limit)) || 100;
-      if (limitInt < 0) {
+      // Ensure offset and limit are integers (Neo4j requires integer, not float)
+      const offsetInt = Math.floor(Number(offset)) || 0;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      
+      if (offsetInt < 0) {
         throw new GenericHttpException(
-          'Limit must be a non-negative integer',
+          'Offset must be a non-negative integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      
+      if (limitInt < 1) {
+        throw new GenericHttpException(
+          'Limit must be a positive integer',
           HttpStatus.BAD_REQUEST,
         );
       }
 
+      // Get total count of following
+      const countResult = await session.run(
+        `MATCH (u:User {userId: $userId})-[:FOLLOWS]->(following:User)
+         RETURN count(following) as total`,
+        { userId },
+      );
+      const total = this.toNumber(countResult.records[0]?.get('total') || 0);
+
+      // Use Neo4j's integer type to ensure it's sent as an integer, not a float
       const result = await session.run(
         `MATCH (u:User {userId: $userId})-[:FOLLOWS]->(following:User)
          RETURN following.userId as userId, following.username as username, following.name as name
+         SKIP $offset
          LIMIT $limit`,
-        { userId, limit: neo4j.int(limitInt) },
+        { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
-      return result.records.map((r) => ({
+      
+      const following = result.records.map((r) => ({
         userId: r.get('userId'),
         username: r.get('username'),
         name: r.get('name'),
       }));
+
+      // Calculate pagination metadata
+      const hasMore = offsetInt + limitInt < total;
+      const nextOffset = hasMore ? offsetInt + limitInt : null;
+
+      return {
+        data: following,
+        meta: {
+          limit: limitInt,
+          offset: offsetInt,
+          total,
+          hasMore,
+          nextOffset,
+        },
+      };
     } catch (error) {
       if (error instanceof GenericHttpException) {
         throw error;
@@ -710,7 +930,20 @@ export class SocialService {
    * 3. Users you follow who follow them back
    * 4. Location matching
    */
-  async getFriendRecommendations(userId: string, limit = 10): Promise<RecommendedUser[]> {
+  async getFriendRecommendations(
+    userId: string,
+    offset = 0,
+    limit = 10,
+  ): Promise<{
+    data: RecommendedUser[];
+    meta: {
+      limit: number;
+      offset: number;
+      total: number;
+      hasMore: boolean;
+      nextOffset: number | null;
+    };
+  }> {
     const session = this.neo4jservice.getSession();
     try {
       // Check if user exists in Neo4j
@@ -751,14 +984,38 @@ export class SocialService {
         }
       }
 
-      // Ensure limit is an integer (Neo4j requires integer, not float)
+      // Ensure offset and limit are integers (Neo4j requires integer, not float)
+      const offsetInt = Math.floor(Number(offset)) || 0;
       const limitInt = Math.floor(Number(limit)) || 10;
-      if (limitInt < 0) {
+      
+      if (offsetInt < 0) {
         throw new GenericHttpException(
-          'Limit must be a non-negative integer',
+          'Offset must be a non-negative integer',
           HttpStatus.BAD_REQUEST,
         );
       }
+      
+      if (limitInt < 1) {
+        throw new GenericHttpException(
+          'Limit must be a positive integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Get total count of recommendations (before pagination)
+      const countResult = await session.run(
+        `MATCH (u:User {userId: $userId})
+         
+         // Find friends of friends (not already friends)
+         MATCH (u)-[:FRIENDS]->(friend)-[:FRIENDS]->(recommendation:User)
+         WHERE recommendation.userId <> $userId
+         AND NOT (u)-[:FRIENDS]-(recommendation)
+         
+         WITH DISTINCT recommendation
+         RETURN count(recommendation) as total`,
+        { userId },
+      );
+      const total = this.toNumber(countResult.records[0]?.get('total') || 0);
 
       const result = await session.run(
         `MATCH (u:User {userId: $userId})
@@ -768,13 +1025,14 @@ export class SocialService {
          WHERE recommendation.userId <> $userId
          AND NOT (u)-[:FRIENDS]-(recommendation)
          
-         WITH recommendation, count(DISTINCT friend) as mutualFriends, u.location as userLocation
+         WITH recommendation, count(DISTINCT friend) as mutualFriends
          
-         // Optional: boost score if user follows them or they follow user
+         // Re-match user for optional follows check
+         MATCH (u:User {userId: $userId})
          OPTIONAL MATCH (u)-[f1:FOLLOWS]->(recommendation)
          OPTIONAL MATCH (recommendation)-[f2:FOLLOWS]->(u)
          
-         WITH recommendation, mutualFriends, userLocation,
+         WITH recommendation, mutualFriends, u.location as userLocation,
               CASE WHEN f1 IS NOT NULL THEN 2 ELSE 0 END +
               CASE WHEN f2 IS NOT NULL THEN 1 ELSE 0 END as followBoost
          
@@ -793,19 +1051,43 @@ export class SocialService {
                 score,
                 'mutual_friends' as reason
          ORDER BY score DESC
+         SKIP $offset
          LIMIT $limit`,
-        { userId, limit: neo4j.int(limitInt) },
+        { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
       
-      return result.records.map((r) => ({
-        userId: r.get('userId'),
-        username: r.get('username'),
-        name: r.get('name'),
-        location: r.get('location'),
-        score: r.get('score').toNumber(),
-        mutualFriends: r.get('mutualFriends').toNumber(),
-        reason: r.get('reason'),
-      }));
+      // Map results and deduplicate by userId (in case of any duplicates)
+      const recommendationsMap = new Map<string, any>();
+      result.records.forEach((r) => {
+        const userId = r.get('userId');
+        if (!recommendationsMap.has(userId)) {
+          recommendationsMap.set(userId, {
+            userId: userId,
+            username: r.get('username'),
+            name: r.get('name'),
+            location: r.get('location'),
+            score: this.toNumber(r.get('score')),
+            mutualFriends: this.toNumber(r.get('mutualFriends')),
+            reason: r.get('reason'),
+          });
+        }
+      });
+      const recommendations = Array.from(recommendationsMap.values());
+
+      // Calculate pagination metadata
+      const hasMore = offsetInt + limitInt < total;
+      const nextOffset = hasMore ? offsetInt + limitInt : null;
+
+      return {
+        data: recommendations,
+        meta: {
+          limit: limitInt,
+          offset: offsetInt,
+          total,
+          hasMore,
+          nextOffset,
+        },
+      };
     } catch (error) {
       if (error instanceof GenericHttpException) {
         throw error;
@@ -827,7 +1109,20 @@ export class SocialService {
    * 3. Users who follow you back
    * 4. Location matching
    */
-  async getFollowerRecommendations(userId: string, limit = 10): Promise<RecommendedUser[]> {
+  async getFollowerRecommendations(
+    userId: string,
+    offset = 0,
+    limit = 10,
+  ): Promise<{
+    data: RecommendedUser[];
+    meta: {
+      limit: number;
+      offset: number;
+      total: number;
+      hasMore: boolean;
+      nextOffset: number | null;
+    };
+  }> {
     const session = this.neo4jservice.getSession();
     try {
       // Check if user exists in Neo4j
@@ -868,14 +1163,38 @@ export class SocialService {
         }
       }
 
-      // Ensure limit is an integer (Neo4j requires integer, not float)
+      // Ensure offset and limit are integers (Neo4j requires integer, not float)
+      const offsetInt = Math.floor(Number(offset)) || 0;
       const limitInt = Math.floor(Number(limit)) || 10;
-      if (limitInt < 0) {
+      
+      if (offsetInt < 0) {
         throw new GenericHttpException(
-          'Limit must be a non-negative integer',
+          'Offset must be a non-negative integer',
           HttpStatus.BAD_REQUEST,
         );
       }
+      
+      if (limitInt < 1) {
+        throw new GenericHttpException(
+          'Limit must be a positive integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Get total count of recommendations (before pagination)
+      const countResult = await session.run(
+        `MATCH (u:User {userId: $userId})
+         
+         // Find users followed by people you follow
+         MATCH (u)-[:FOLLOWS]->(following)-[:FOLLOWS]->(recommendation:User)
+         WHERE recommendation.userId <> $userId
+         AND NOT (u)-[:FOLLOWS]->(recommendation)
+         
+         WITH DISTINCT recommendation
+         RETURN count(recommendation) as total`,
+        { userId },
+      );
+      const total = this.toNumber(countResult.records[0]?.get('total') || 0);
 
       const result = await session.run(
         `MATCH (u:User {userId: $userId})
@@ -885,16 +1204,19 @@ export class SocialService {
          WHERE recommendation.userId <> $userId
          AND NOT (u)-[:FOLLOWS]->(recommendation)
          
-         WITH recommendation, count(DISTINCT following) as commonFollowing, u.location as userLocation
+         WITH recommendation, count(DISTINCT following) as commonFollowing
+         
+         // Re-match user for location and follow-back check
+         MATCH (u:User {userId: $userId})
          
          // Count followers of the recommendation (popularity)
          OPTIONAL MATCH (recommendation)<-[:FOLLOWS]-(follower)
-         WITH recommendation, commonFollowing, userLocation, count(DISTINCT follower) as popularity
+         WITH recommendation, commonFollowing, u, count(DISTINCT follower) as popularity
          
          // Check if they follow you back
          OPTIONAL MATCH (recommendation)-[fb:FOLLOWS]->(u)
          
-         WITH recommendation, commonFollowing, popularity, userLocation,
+         WITH recommendation, commonFollowing, popularity, u.location as userLocation,
               CASE WHEN fb IS NOT NULL THEN 5 ELSE 0 END as followBackBonus
          
          // Location boost: +20 points if same location
@@ -912,19 +1234,43 @@ export class SocialService {
                 score,
                 'common_following' as reason
          ORDER BY score DESC
+         SKIP $offset
          LIMIT $limit`,
-        { userId, limit: neo4j.int(limitInt) },
+        { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
       
-      return result.records.map((r) => ({
-        userId: r.get('userId'),
-        username: r.get('username'),
-        name: r.get('name'),
-        location: r.get('location'),
-        score: r.get('score').toNumber(),
-        mutualFriends: r.get('mutualFriends').toNumber(),
-        reason: r.get('reason'),
-      }));
+      // Map results and deduplicate by userId (in case of any duplicates)
+      const recommendationsMap = new Map<string, any>();
+      result.records.forEach((r) => {
+        const userId = r.get('userId');
+        if (!recommendationsMap.has(userId)) {
+          recommendationsMap.set(userId, {
+            userId: userId,
+            username: r.get('username'),
+            name: r.get('name'),
+            location: r.get('location'),
+            score: this.toNumber(r.get('score')),
+            mutualFriends: this.toNumber(r.get('mutualFriends')),
+            reason: r.get('reason'),
+          });
+        }
+      });
+      const recommendations = Array.from(recommendationsMap.values());
+
+      // Calculate pagination metadata
+      const hasMore = offsetInt + limitInt < total;
+      const nextOffset = hasMore ? offsetInt + limitInt : null;
+
+      return {
+        data: recommendations,
+        meta: {
+          limit: limitInt,
+          offset: offsetInt,
+          total,
+          hasMore,
+          nextOffset,
+        },
+      };
     } catch (error) {
       if (error instanceof GenericHttpException) {
         throw error;
@@ -942,7 +1288,21 @@ export class SocialService {
   /**
    * Get mutual friends between two users
    */
-  async getMutualFriends(userId1: string, userId2: string): Promise<UserNode[]> {
+  async getMutualFriends(
+    userId1: string,
+    userId2: string,
+    offset = 0,
+    limit = 10,
+  ): Promise<{
+    data: UserNode[];
+    meta: {
+      limit: number;
+      offset: number;
+      total: number;
+      hasMore: boolean;
+      nextOffset: number | null;
+    };
+  }> {
     const session = this.neo4jservice.getSession();
     try {
       // Check if both users exist
@@ -956,16 +1316,61 @@ export class SocialService {
         );
       }
 
-      const result = await session.run(
+      // Ensure offset and limit are integers (Neo4j requires integer, not float)
+      const offsetInt = Math.floor(Number(offset)) || 0;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      
+      if (offsetInt < 0) {
+        throw new GenericHttpException(
+          'Offset must be a non-negative integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      
+      if (limitInt < 1) {
+        throw new GenericHttpException(
+          'Limit must be a positive integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Get total count of mutual friends
+      const countResult = await session.run(
         `MATCH (u1:User {userId: $userId1})-[:FRIENDS]->(mutual:User)<-[:FRIENDS]-(u2:User {userId: $userId2})
-         RETURN mutual.userId as userId, mutual.username as username, mutual.name as name`,
+         RETURN count(mutual) as total`,
         { userId1, userId2 },
       );
-      return result.records.map((r) => ({
+      const total = this.toNumber(countResult.records[0]?.get('total') || 0);
+
+      // Use Neo4j's integer type to ensure it's sent as an integer, not a float
+      const result = await session.run(
+        `MATCH (u1:User {userId: $userId1})-[:FRIENDS]->(mutual:User)<-[:FRIENDS]-(u2:User {userId: $userId2})
+         RETURN mutual.userId as userId, mutual.username as username, mutual.name as name
+         SKIP $offset
+         LIMIT $limit`,
+        { userId1, userId2, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
+      );
+      
+      const mutualFriends = result.records.map((r) => ({
         userId: r.get('userId'),
         username: r.get('username'),
         name: r.get('name'),
       }));
+
+      // Calculate pagination metadata
+      const hasMore = offsetInt + limitInt < total;
+      const nextOffset = hasMore ? offsetInt + limitInt : null;
+
+      return {
+        data: mutualFriends,
+        meta: {
+          limit: limitInt,
+          offset: offsetInt,
+          total,
+          hasMore,
+          nextOffset,
+        },
+      };
     } catch (error) {
       if (error instanceof GenericHttpException) {
         throw error;
