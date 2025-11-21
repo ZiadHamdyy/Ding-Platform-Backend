@@ -192,14 +192,17 @@ export class SocialController {
   async getMutualFriends(
     @Param('userId') userId: string,
     @currentUser() user: currentUserType,
+    @Query('offset') offset?: string,
+    @Query('limit') limit?: string,
   ) {
-    const mutualFriends = await this.socialservice.getMutualFriends(
+    // Parse offset and limit from query string and convert to numbers
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return await this.socialservice.getMutualFriends(
       user.id,
       userId,
+      offsetNum,
+      limitNum,
     );
-    return {
-      data: mutualFriends,
-      count: mutualFriends.length,
-    };
   }
 }
