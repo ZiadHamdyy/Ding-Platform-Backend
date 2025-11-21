@@ -17,13 +17,31 @@ export class FriendResponse implements UserNode {
   name?: string;
 }
 
+class FriendsListMeta {
+  @Expose()
+  limit: number;
+
+  @Expose()
+  offset: number;
+
+  @Expose()
+  total: number;
+
+  @Expose()
+  hasMore: boolean;
+
+  @Expose()
+  nextOffset: number | null;
+}
+
 export class FriendsListResponse {
   @Expose()
   @Type(() => FriendResponse)
   data: FriendResponse[];
 
   @Expose()
-  count: number;
+  @Type(() => FriendsListMeta)
+  meta: FriendsListMeta;
 }
 
 export class RecommendedUserResponse implements RecommendedUser {

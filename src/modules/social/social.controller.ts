@@ -44,15 +44,13 @@ export class SocialController {
   @Serialize(FriendsListResponse, FriendResponse)
   async getFriends(
     @currentUser() user: currentUserType,
+    @Query('offset') offset?: string,
     @Query('limit') limit?: string,
   ) {
-    // Parse limit from query string and convert to number
-    const limitNum = limit ? parseInt(limit, 10) : undefined;
-    const friends = await this.socialservice.getFriends(user.id, limitNum);
-    return {
-      data: friends,
-      count: friends.length,
-    };
+    // Parse offset and limit from query string and convert to numbers
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return await this.socialservice.getFriends(user.id, offsetNum, limitNum);
   }
 
   // POST routes - parameterized routes
