@@ -666,7 +666,20 @@ export class SocialService {
     }
   }
 
-  async getFollowers(userId: string, limit = 100): Promise<UserNode[]> {
+  async getFollowers(
+    userId: string,
+    offset = 0,
+    limit = 10,
+  ): Promise<{
+    data: UserNode[];
+    meta: {
+      limit: number;
+      offset: number;
+      total: number;
+      hasMore: boolean;
+      nextOffset: number | null;
+    };
+  }> {
     const session = this.neo4jservice.getSession();
     try {
       // Check if user exists in Neo4j
@@ -707,26 +720,61 @@ export class SocialService {
         }
       }
 
-      // Ensure limit is an integer (Neo4j requires integer, not float)
-      const limitInt = Math.floor(Number(limit)) || 100;
-      if (limitInt < 0) {
+      // Ensure offset and limit are integers (Neo4j requires integer, not float)
+      const offsetInt = Math.floor(Number(offset)) || 0;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      
+      if (offsetInt < 0) {
         throw new GenericHttpException(
-          'Limit must be a non-negative integer',
+          'Offset must be a non-negative integer',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      
+      if (limitInt < 1) {
+        throw new GenericHttpException(
+          'Limit must be a positive integer',
           HttpStatus.BAD_REQUEST,
         );
       }
 
+      // Get total count of followers
+      const countResult = await session.run(
+        `MATCH (follower:User)-[:FOLLOWS]->(u:User {userId: $userId})
+         RETURN count(follower) as total`,
+        { userId },
+      );
+      const total = this.toNumber(countResult.records[0]?.get('total') || 0);
+
+      // Use Neo4j's integer type to ensure it's sent as an integer, not a float
       const result = await session.run(
         `MATCH (follower:User)-[:FOLLOWS]->(u:User {userId: $userId})
          RETURN follower.userId as userId, follower.username as username, follower.name as name
+         SKIP $offset
          LIMIT $limit`,
-        { userId, limit: neo4j.int(limitInt) },
+        { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
-      return result.records.map((r) => ({
+      
+      const followers = result.records.map((r) => ({
         userId: r.get('userId'),
         username: r.get('username'),
         name: r.get('name'),
       }));
+
+      // Calculate pagination metadata
+      const hasMore = offsetInt + limitInt < total;
+      const nextOffset = hasMore ? offsetInt + limitInt : null;
+
+      return {
+        data: followers,
+        meta: {
+          limit: limitInt,
+          offset: offsetInt,
+          total,
+          hasMore,
+          nextOffset,
+        },
+      };
     } catch (error) {
       if (error instanceof GenericHttpException) {
         throw error;

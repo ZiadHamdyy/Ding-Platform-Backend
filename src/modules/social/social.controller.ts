@@ -119,15 +119,13 @@ export class SocialController {
   @Serialize(FriendsListResponse, FriendResponse)
   async getFollowers(
     @currentUser() user: currentUserType,
+    @Query('offset') offset?: string,
     @Query('limit') limit?: string,
   ) {
-    // Parse limit from query string and convert to number
-    const limitNum = limit ? parseInt(limit, 10) : undefined;
-    const followers = await this.socialservice.getFollowers(user.id, limitNum);
-    return {
-      data: followers,
-      count: followers.length,
-    };
+    // Parse offset and limit from query string and convert to numbers
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return await this.socialservice.getFollowers(user.id, offsetNum, limitNum);
   }
 
   @Get('following')
