@@ -14,6 +14,56 @@ export class SocialService {
   ) {}
 
   /**
+   * Safely convert Neo4j Integer or Float to JavaScript number
+   */
+  private toNumber(value: any): number {
+    if (value == null) {
+      return 0;
+    }
+    // Neo4j Integer has toNumber() method
+    if (typeof value.toNumber === 'function') {
+      return value.toNumber();
+    }
+    // Already a number (Float or regular number)
+    if (typeof value === 'number') {
+      return value;
+    }
+    // Fallback: try to parse as number
+    return Number(value) || 0;
+  }
+
+  /**
+   * Mark users as recommended so they won't appear in future recommendations
+   */
+  private async markUsersAsRecommended(
+    userId: string,
+    recommendedUserIds: string[],
+    recommendationType: 'FRIEND' | 'FOLLOW',
+  ): Promise<void> {
+    if (recommendedUserIds.length === 0) return;
+
+    const session = this.neo4jservice.getSession();
+    try {
+      const relationshipType =
+        recommendationType === 'FRIEND'
+          ? 'RECOMMENDED_FRIEND'
+          : 'RECOMMENDED_FOLLOW';
+      
+      // Create relationships to mark these users as recommended (batch operation)
+      await session.run(
+        `MATCH (u:User {userId: $userId})
+         UNWIND $recommendedUserIds as recommendedUserId
+         MATCH (r:User {userId: recommendedUserId})
+         MERGE (u)-[rel:${relationshipType}]->(r)
+         SET rel.createdAt = datetime()`,
+        { userId, recommendedUserIds },
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
    * Check if a user node exists in Neo4j
    */
   private async userExists(userId: string): Promise<boolean> {
@@ -767,6 +817,7 @@ export class SocialService {
          MATCH (u)-[:FRIENDS]->(friend)-[:FRIENDS]->(recommendation:User)
          WHERE recommendation.userId <> $userId
          AND NOT (u)-[:FRIENDS]-(recommendation)
+         AND NOT (u)-[:RECOMMENDED_FRIEND]->(recommendation)
          
          WITH recommendation, count(DISTINCT friend) as mutualFriends, u.location as userLocation
          
@@ -797,15 +848,38 @@ export class SocialService {
         { userId, limit: neo4j.int(limitInt) },
       );
       
-      return result.records.map((r) => ({
-        userId: r.get('userId'),
-        username: r.get('username'),
-        name: r.get('name'),
-        location: r.get('location'),
-        score: r.get('score').toNumber(),
-        mutualFriends: r.get('mutualFriends').toNumber(),
-        reason: r.get('reason'),
-      }));
+      // Map results and deduplicate by userId (in case of any duplicates)
+      const recommendationsMap = new Map<string, any>();
+      result.records.forEach((r) => {
+        const userId = r.get('userId');
+        if (!recommendationsMap.has(userId)) {
+          recommendationsMap.set(userId, {
+            userId: userId,
+            username: r.get('username'),
+            name: r.get('name'),
+            location: r.get('location'),
+            score: this.toNumber(r.get('score')),
+            mutualFriends: this.toNumber(r.get('mutualFriends')),
+            reason: r.get('reason'),
+          });
+        }
+      });
+      const recommendations = Array.from(recommendationsMap.values());
+
+      // Mark these users as recommended so they won't appear again
+      if (recommendations.length > 0) {
+        const recommendedUserIds = recommendations.map((r) => r.userId);
+        await session.run(
+          `MATCH (u:User {userId: $userId})
+           UNWIND $recommendedUserIds as recommendedUserId
+           MATCH (r:User {userId: recommendedUserId})
+           MERGE (u)-[rel:RECOMMENDED_FRIEND]->(r)
+           SET rel.createdAt = datetime()`,
+          { userId, recommendedUserIds },
+        );
+      }
+
+      return recommendations;
     } catch (error) {
       if (error instanceof GenericHttpException) {
         throw error;
@@ -884,6 +958,7 @@ export class SocialService {
          MATCH (u)-[:FOLLOWS]->(following)-[:FOLLOWS]->(recommendation:User)
          WHERE recommendation.userId <> $userId
          AND NOT (u)-[:FOLLOWS]->(recommendation)
+         AND NOT (u)-[:RECOMMENDED_FOLLOW]->(recommendation)
          
          WITH recommendation, count(DISTINCT following) as commonFollowing, u.location as userLocation
          
@@ -916,15 +991,38 @@ export class SocialService {
         { userId, limit: neo4j.int(limitInt) },
       );
       
-      return result.records.map((r) => ({
-        userId: r.get('userId'),
-        username: r.get('username'),
-        name: r.get('name'),
-        location: r.get('location'),
-        score: r.get('score').toNumber(),
-        mutualFriends: r.get('mutualFriends').toNumber(),
-        reason: r.get('reason'),
-      }));
+      // Map results and deduplicate by userId (in case of any duplicates)
+      const recommendationsMap = new Map<string, any>();
+      result.records.forEach((r) => {
+        const userId = r.get('userId');
+        if (!recommendationsMap.has(userId)) {
+          recommendationsMap.set(userId, {
+            userId: userId,
+            username: r.get('username'),
+            name: r.get('name'),
+            location: r.get('location'),
+            score: this.toNumber(r.get('score')),
+            mutualFriends: this.toNumber(r.get('mutualFriends')),
+            reason: r.get('reason'),
+          });
+        }
+      });
+      const recommendations = Array.from(recommendationsMap.values());
+
+      // Mark these users as recommended so they won't appear again
+      if (recommendations.length > 0) {
+        const recommendedUserIds = recommendations.map((r) => r.userId);
+        await session.run(
+          `MATCH (u:User {userId: $userId})
+           UNWIND $recommendedUserIds as recommendedUserId
+           MATCH (r:User {userId: recommendedUserId})
+           MERGE (u)-[rel:RECOMMENDED_FOLLOW]->(r)
+           SET rel.createdAt = datetime()`,
+          { userId, recommendedUserIds },
+        );
+      }
+
+      return recommendations;
     } catch (error) {
       if (error instanceof GenericHttpException) {
         throw error;
