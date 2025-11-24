@@ -340,17 +340,51 @@ async function createUsersAndProfiles(batchSize: number = 100) {
         });
       }
 
-      // Create users in batch
-      const createdUsers = await Promise.all(
-        usersData.map((userData) =>
-          prisma.user.create({
-            data: userData,
-            include: {
-              Profile: true,
-            },
+      // Create users in batch with retry logic and concurrency limit
+      // Process in smaller chunks to avoid overwhelming the connection pool
+      const concurrencyLimit = 10; // Process 10 users at a time
+      const createdUsers: any[] = [];
+      
+      for (let chunkStart = 0; chunkStart < usersData.length; chunkStart += concurrencyLimit) {
+        const chunk = usersData.slice(chunkStart, chunkStart + concurrencyLimit);
+        
+        const chunkResults = await Promise.all(
+          chunk.map(async (userData) => {
+            const maxRetries = 3;
+            const baseDelay = 1000;
+            
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+              try {
+                return await prisma.user.create({
+                  data: userData,
+                  include: {
+                    Profile: true,
+                  },
+                });
+              } catch (error: any) {
+                // If it's a connection error and we have retries left, retry
+                if (error.code === 'P1001' && attempt < maxRetries) {
+                  const delay = baseDelay * Math.pow(2, attempt - 1);
+                  console.log(`  ⚠️  Retrying user creation (attempt ${attempt}/${maxRetries}) after ${delay}ms...`);
+                  await new Promise((resolve) => setTimeout(resolve, delay));
+                  continue;
+                }
+                // For other errors or last attempt, throw
+                throw error;
+              }
+            }
+            // This should never be reached, but TypeScript needs it
+            throw new Error('Failed to create user after all retries');
           }),
-        ),
-      );
+        );
+        
+        createdUsers.push(...chunkResults);
+        
+        // Small delay between chunks to avoid overwhelming the database
+        if (chunkStart + concurrencyLimit < usersData.length) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      }
 
       // Create Neo4j nodes for each user
       for (const user of createdUsers) {
@@ -757,10 +791,38 @@ async function main() {
       throw error;
     }
     
-    // Connect to Prisma
+    // Connect to Prisma with retry logic
     console.log('📡 Connecting to PostgreSQL...');
-    await prisma.$connect();
-    console.log('✅ PostgreSQL connected\n');
+    const maxRetries = 5;
+    const baseDelay = 2000; // 2 seconds
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await prisma.$connect();
+        // Small delay to ensure connection is stable
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        console.log('✅ PostgreSQL connected\n');
+        break;
+      } catch (error: any) {
+        if (attempt === maxRetries) {
+          console.error(`❌ Failed to connect to PostgreSQL after ${maxRetries} attempts`);
+          console.error(`   Error: ${error.message}`);
+          if (error.code === 'P1001') {
+            console.log('💡 Connection Error (P1001): Cannot reach database server');
+            console.log('   - If using Neon: The database might be sleeping. Try accessing it first to wake it up.');
+            console.log('   - If using Docker: Ensure the postgres container is running: docker-compose ps');
+            console.log('   - Check your DATABASE_URL environment variable is correct');
+          } else {
+            console.log('💡 Tip: Make sure your database server is running and accessible.');
+            console.log('   Check your DATABASE_URL environment variable and network connectivity.');
+          }
+          throw error;
+        }
+        const delay = baseDelay * Math.pow(2, attempt - 1);
+        console.log(`⚠️  Connection attempt ${attempt}/${maxRetries} failed, retrying in ${delay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
     
     // Clear existing data
     if (neo4jConnected) {
