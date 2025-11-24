@@ -118,4 +118,151 @@ export class CloudinaryService {
     const filename = parts[parts.length - 1];
     return filename.split('.')[0];
   }
+
+  async uploadPostImage(
+    file: Express.Multer.File,
+    postId: string,
+  ): Promise<{ url: string; publicId: string; width: number; height: number }> {
+    const POST_CONSTANTS = await import('../../constants/post.constants').then(
+      (m) => m.POST_CONSTANTS,
+    );
+    const ERROR_MESSAGES = await import(
+      '../../constants/error-messages.constant'
+    ).then((m) => m.ERROR_MESSAGES);
+
+    // Validate file type
+    if (
+      !POST_CONSTANTS.UPLOAD.ALLOWED_IMAGE_TYPES.includes(
+        file.mimetype as (typeof POST_CONSTANTS.UPLOAD.ALLOWED_IMAGE_TYPES)[number],
+      )
+    ) {
+      throw new BadRequestException(ERROR_MESSAGES.POST_INVALID_IMAGE_TYPE);
+    }
+
+    // Validate file size
+    if (file.size > POST_CONSTANTS.VALIDATION.MAX_IMAGE_SIZE) {
+      throw new BadRequestException(ERROR_MESSAGES.POST_IMAGE_TOO_LARGE);
+    }
+
+    try {
+      const result = await this.uploadStream(file, {
+        folder: `${POST_CONSTANTS.CLOUDINARY.FOLDER}/images`,
+        public_id: `post_${postId}_${Date.now()}`,
+        transformation: [
+          {
+            width: POST_CONSTANTS.CLOUDINARY.IMAGE_TRANSFORMATION.MAX_WIDTH,
+            height: POST_CONSTANTS.CLOUDINARY.IMAGE_TRANSFORMATION.MAX_HEIGHT,
+            crop: 'limit',
+          },
+          {
+            quality: POST_CONSTANTS.CLOUDINARY.IMAGE_TRANSFORMATION.QUALITY,
+            fetch_format: POST_CONSTANTS.CLOUDINARY.IMAGE_TRANSFORMATION.FORMAT,
+          },
+        ],
+      });
+
+      return {
+        url: result.secure_url,
+        publicId: result.public_id,
+        width: result.width,
+        height: result.height,
+      };
+    } catch (error) {
+      console.error('Cloudinary post image upload error:', error);
+      throw new BadRequestException(ERROR_MESSAGES.POST_MEDIA_UPLOAD_FAILED);
+    }
+  }
+
+  async uploadPostVideo(
+    file: Express.Multer.File,
+    postId: string,
+  ): Promise<{ url: string; publicId: string; width: number; height: number }> {
+    const POST_CONSTANTS = await import('../../constants/post.constants').then(
+      (m) => m.POST_CONSTANTS,
+    );
+    const ERROR_MESSAGES = await import(
+      '../../constants/error-messages.constant'
+    ).then((m) => m.ERROR_MESSAGES);
+
+    // Validate file type
+    if (
+      !POST_CONSTANTS.UPLOAD.ALLOWED_VIDEO_TYPES.includes(
+        file.mimetype as (typeof POST_CONSTANTS.UPLOAD.ALLOWED_VIDEO_TYPES)[number],
+      )
+    ) {
+      throw new BadRequestException(ERROR_MESSAGES.POST_INVALID_VIDEO_TYPE);
+    }
+
+    // Validate file size
+    if (file.size > POST_CONSTANTS.VALIDATION.MAX_VIDEO_SIZE) {
+      throw new BadRequestException(ERROR_MESSAGES.POST_VIDEO_TOO_LARGE);
+    }
+
+    try {
+      const result = await this.uploadStream(file, {
+        folder: `${POST_CONSTANTS.CLOUDINARY.FOLDER}/videos`,
+        public_id: `post_video_${postId}_${Date.now()}`,
+        resource_type: 'video',
+        transformation: [
+          {
+            width: POST_CONSTANTS.CLOUDINARY.VIDEO_TRANSFORMATION.MAX_WIDTH,
+            height: POST_CONSTANTS.CLOUDINARY.VIDEO_TRANSFORMATION.MAX_HEIGHT,
+            crop: 'limit',
+          },
+          {
+            quality: POST_CONSTANTS.CLOUDINARY.VIDEO_TRANSFORMATION.QUALITY,
+          },
+        ],
+      });
+
+      return {
+        url: result.secure_url,
+        publicId: result.public_id,
+        width: result.width || 0,
+        height: result.height || 0,
+      };
+    } catch (error) {
+      console.error('Cloudinary post video upload error:', error);
+      throw new BadRequestException(ERROR_MESSAGES.POST_MEDIA_UPLOAD_FAILED);
+    }
+  }
+
+  async uploadMultiplePostMedia(
+    files: { images?: Express.Multer.File[]; videos?: Express.Multer.File[] },
+    postId: string,
+  ): Promise<{
+    imageUrls: Array<{
+      url: string;
+      publicId: string;
+      width: number;
+      height: number;
+    }>;
+    videoUrls: Array<{
+      url: string;
+      publicId: string;
+      width: number;
+      height: number;
+    }>;
+  }> {
+    const imageUrls = [];
+    const videoUrls = [];
+
+    // Upload images
+    if (files.images && files.images.length > 0) {
+      for (const image of files.images) {
+        const result = await this.uploadPostImage(image, postId);
+        imageUrls.push(result);
+      }
+    }
+
+    // Upload videos
+    if (files.videos && files.videos.length > 0) {
+      for (const video of files.videos) {
+        const result = await this.uploadPostVideo(video, postId);
+        videoUrls.push(result);
+      }
+    }
+
+    return { imageUrls, videoUrls };
+  }
 }

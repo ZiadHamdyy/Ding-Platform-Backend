@@ -205,4 +205,80 @@ export class SocialController {
       limitNum,
     );
   }
+
+  // Blocking endpoints
+  @Post('block/:userId')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(MessageResponse)
+  async blockUser(
+    @Param('userId') userId: string,
+    @currentUser() user: currentUserType,
+  ) {
+    await this.socialservice.blockUser(user.id, userId);
+    return { message: 'User blocked successfully' };
+  }
+
+  @Delete('block/:userId')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(MessageResponse)
+  async unblockUser(
+    @Param('userId') userId: string,
+    @currentUser() user: currentUserType,
+  ) {
+    await this.socialservice.unblockUser(user.id, userId);
+    return { message: 'User unblocked successfully' };
+  }
+
+  @Get('blocked')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(FriendsListResponse, FriendResponse)
+  async getBlockedUsers(
+    @currentUser() user: currentUserType,
+    @Query('limit') limit?: string,
+  ) {
+    const limitNum = limit ? parseInt(limit, 10) : undefined;
+    const blocked = await this.socialservice.getBlockedUsers(user.id, limitNum);
+    return {
+      data: blocked,
+      count: blocked.length,
+    };
+  }
+
+  // Muting endpoints
+  @Post('mute/:userId')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(MessageResponse)
+  async muteUser(
+    @Param('userId') userId: string,
+    @currentUser() user: currentUserType,
+  ) {
+    await this.socialservice.muteUser(user.id, userId);
+    return { message: 'User muted successfully' };
+  }
+
+  @Delete('mute/:userId')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(MessageResponse)
+  async unmuteUser(
+    @Param('userId') userId: string,
+    @currentUser() user: currentUserType,
+  ) {
+    await this.socialservice.unmuteUser(user.id, userId);
+    return { message: 'User unmuted successfully' };
+  }
+
+  @Get('muted')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(FriendsListResponse, FriendResponse)
+  async getMutedUsers(
+    @currentUser() user: currentUserType,
+    @Query('limit') limit?: string,
+  ) {
+    const limitNum = limit ? parseInt(limit, 10) : undefined;
+    const muted = await this.socialservice.getMutedUsers(user.id, limitNum);
+    return {
+      data: muted,
+      count: muted.length,
+    };
+  }
 }

@@ -33,9 +33,11 @@ export const ERROR_MESSAGES = {
   SESSION_DELETE_FAILED: 'Failed to delete session. Please try again',
   SESSION_RETRIEVE_FAILED: 'Failed to retrieve sessions. Please try again',
   SESSION_COUNT_FAILED: 'Failed to count sessions. Please try again',
-  SESSION_NOT_FOUND: 'Session not found or you do not have permission to access it',
+  SESSION_NOT_FOUND:
+    'Session not found or you do not have permission to access it',
   SESSION_TERMINATE_FAILED: 'Failed to terminate session. Please try again',
-  SESSION_TERMINATE_ALL_FAILED: 'Failed to terminate all sessions. Please try again',
+  SESSION_TERMINATE_ALL_FAILED:
+    'Failed to terminate all sessions. Please try again',
 
   // Validation Messages (DTOs)
   EMAIL_REQUIRED: 'Email is required',
@@ -85,36 +87,67 @@ export const ERROR_MESSAGES = {
   EMAIL_VERIFICATION_SUCCESS: 'Email verified successfully',
   EMAIL_ALREADY_VERIFIED: 'Email is already verified',
   EMAIL_NOT_VERIFIED: 'Please verify your email before logging in',
-  SIGNUP_SUCCESS: 'Signup successful. Please check your email to verify your account.',
+  SIGNUP_SUCCESS:
+    'Signup successful. Please check your email to verify your account.',
 
   // Session Messages
   ALREADY_SIGNED_IN: 'You are already signed in with this device',
 
   // Resend Verification Messages
   VERIFICATION_CODE_RESENT: 'Verification code has been resent to your email',
-  FORGOT_PASSWORD_CODE_RESENT: 'Password reset code has been resent to your email',
+  FORGOT_PASSWORD_CODE_RESENT:
+    'Password reset code has been resent to your email',
 
   // Social Errors
-  CANNOT_SEND_FRIEND_REQUEST_TO_SELF: 'You cannot send a friend request to yourself',
+  CANNOT_SEND_FRIEND_REQUEST_TO_SELF:
+    'You cannot send a friend request to yourself',
   USER_NOT_FOUND_IN_SOCIAL: 'User not found',
   ALREADY_FRIENDS: 'You are already friends with this user',
   FRIEND_REQUEST_ALREADY_SENT: 'Friend request has already been sent',
   FRIEND_REQUEST_NOT_FOUND: 'Friend request not found',
-  ALREADY_HAVE_FRIEND_REQUEST: 'You already have a pending friend request from this user',
+  ALREADY_HAVE_FRIEND_REQUEST:
+    'You already have a pending friend request from this user',
   NOT_FRIENDS: 'You are not friends with this user',
   FRIEND_REQUEST_FAILED: 'Failed to send friend request. Please try again',
-  ACCEPT_FRIEND_REQUEST_FAILED: 'Failed to accept friend request. Please try again',
+  ACCEPT_FRIEND_REQUEST_FAILED:
+    'Failed to accept friend request. Please try again',
   REMOVE_FRIEND_FAILED: 'Failed to remove friend. Please try again',
   GET_FRIENDS_FAILED: 'Failed to retrieve friends. Please try again',
-  GET_FRIEND_REQUESTS_FAILED: 'Failed to retrieve friend requests. Please try again',
+  GET_FRIEND_REQUESTS_FAILED:
+    'Failed to retrieve friend requests. Please try again',
 
   CANNOT_FOLLOW_SELF: 'You cannot follow yourself',
   FOLLOW_FAILED: 'Failed to follow user. Please try again',
   UNFOLLOW_FAILED: 'Failed to unfollow user. Please try again',
   GET_FOLLOWERS_FAILED: 'Failed to retrieve followers. Please try again',
   GET_FOLLOWING_FAILED: 'Failed to retrieve following list. Please try again',
+
+  // Post Errors
+  POSTS_NOT_FOUND: 'No posts found',
+  POST_CREATION_FAILED: 'Failed to create post. Please try again',
+  POST_NOT_FOUND: 'Post not found',
+  POST_UPDATE_FAILED: 'Failed to update post. Please try again',
+  POST_DELETE_FAILED: 'Failed to delete post. Please try again',
+  POST_UNAUTHORIZED: 'You do not have permission to modify this post',
+  POST_CONTENT_TOO_LONG: 'Post content exceeds maximum length of 10,000 characters',
+  POST_TOO_MANY_IMAGES: 'You can upload a maximum of 5 images per post',
+  POST_TOO_MANY_VIDEOS: 'You can upload a maximum of 2 videos per post',
+  POST_INVALID_IMAGE_TYPE: 'Invalid image type. Allowed types: JPEG, PNG, GIF, WebP',
+  POST_INVALID_VIDEO_TYPE: 'Invalid video type. Allowed types: MP4, WebM, QuickTime',
+  POST_IMAGE_TOO_LARGE: 'Image size exceeds maximum of 5MB',
+  POST_VIDEO_TOO_LARGE: 'Video size exceeds maximum of 50MB',
+  POST_MEDIA_UPLOAD_FAILED: 'Failed to upload media. Please try again',
+  POST_ALREADY_DELETED: 'This post has already been deleted',
+  POST_RESTORE_FAILED: 'Failed to restore post. Please try again',
+  
+  // Comment Errors
+  COMMENT_NOT_FOUND: 'Comment not found',
+  COMMENT_CREATION_FAILED: 'Failed to create comment. Please try again',
+  COMMENT_DELETE_FAILED: 'Failed to delete comment. Please try again',
+  COMMENT_UNAUTHORIZED: 'You do not have permission to delete this comment',
+  CANNOT_REPLY_TO_SELF: 'You cannot reply to your own comment', // Optional rule
+
 } as const;
 
 // Type for error message keys
 export type ErrorMessageKey = keyof typeof ERROR_MESSAGES;
-

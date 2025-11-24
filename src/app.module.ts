@@ -17,6 +17,9 @@ import { SessionModule } from './modules/session/session.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { CloudinaryModule } from './common/services/cloudinary/cloudinary.module';
 import { SocialModule } from './modules/social/social.module';
+import { PostModule } from './modules/post/post.module';
+import { FeedModule } from './modules/feed/feed.module';
+import { PrivacyModule } from './modules/privacy/privacy.module';
 
 @Module({
   imports: [
@@ -33,6 +36,9 @@ import { SocialModule } from './modules/social/social.module';
     ProfileModule,
     CloudinaryModule,
     SocialModule,
+    PostModule,
+    FeedModule,
+    PrivacyModule,
   ],
   controllers: [AppController],
   providers: [

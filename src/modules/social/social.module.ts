@@ -1,10 +1,13 @@
 import { Module } from '@nestjs/common';
+import { DatabaseModule } from '../../configs/database/database.module';
+import { NotificationModule } from '../notification/notification.module';
 import { SocialService } from './social.service';
 import { SocialController } from './social.controller';
 
 @Module({
-  controllers: [SocialController],
+  imports: [DatabaseModule, NotificationModule],
   providers: [SocialService],
-  exports: [SocialService], // Export SocialService so it can be used in other modules
+  controllers: [SocialController],
+  exports: [SocialService],
 })
 export class SocialModule {}
