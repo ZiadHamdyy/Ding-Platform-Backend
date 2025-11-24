@@ -31,6 +31,19 @@ model User {
   Profile Profile?
   Notification Notification[]
   NotificationActor Notification[] @relation("NotificationActor")
+  Post    Post[]
+  Likes   Like[]
+  Comments Comment[]
+
+  // Social Graph Relations
+  sentFriendRequests     Friendship[] @relation("SentFriendRequests")
+  receivedFriendRequests Friendship[] @relation("ReceivedFriendRequests")
+  
+  following              Follow[]     @relation("Following")
+  followers              Follow[]     @relation("Followers")
+  
+  blockedUsers           Block[]      @relation("BlockedUsers")
+  blockedBy              Block[]      @relation("BlockedBy")
 }
 
 model Session {
@@ -164,4 +177,184 @@ model Notification {
   @@index([userId])
   @@index([userId, read])
   @@index([createdAt])
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  content   String   @db.Text
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  mediaUrls String[] @default([])
+  privacy   PostPrivacy @default(PUBLIC)
+
+  // Soft delete fields
+  isDeleted Boolean  @default(false)
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  PostHistory  PostHistory[]
+  PostMedia    PostMedia[]
+  PostAudience PostAudience[]
+  Likes        Like[]
+  Comments     Comment[]
+
+  @@index([authorId])
+  @@index([isDeleted])
+  @@index([createdAt])
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String   @db.Text
+  
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  // Self-referencing relation for nested comments
+  parentId  String?
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([postId])
+  @@index([authorId])
+  @@index([parentId])
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+model Friendship {
+  id          String           @id @default(uuid())
+  requester   User             @relation("SentFriendRequests", fields: [requesterId], references: [id], onDelete: Cascade)
+  requesterId String
+  recipient   User             @relation("ReceivedFriendRequests", fields: [recipientId], references: [id], onDelete: Cascade)
+  recipientId String
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([requesterId, recipientId])
+  @@index([requesterId])
+  @@index([recipientId])
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  follower    User     @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  followerId  String
+  following   User     @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+  followingId String
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model Block {
+  id        String   @id @default(uuid())
+  blocker   User     @relation("BlockedUsers", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockerId String
+  blocked   User     @relation("BlockedBy", fields: [blockedId], references: [id], onDelete: Cascade)
+  blockedId String
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+}
+
+model PostHistory {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  content   String   @db.Text
+  mediaUrls String[] @default([])
+  privacy   PostPrivacy
+  
+  changeType PostChangeType
+  changedAt  DateTime @default(now())
+
+  @@index([postId])
+  @@index([changedAt])
+}
+
+enum PostChangeType {
+  CREATED
+  UPDATED
+  DELETED
+  RESTORED
+}
+
+model PostMedia {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  url       String
+  type      MediaType
+  publicId  String   // Cloudinary public ID for deletion
+  size      Int      // File size in bytes
+  width     Int?
+  height    Int?
+  
+  createdAt DateTime @default(now())
+
+  @@index([postId])
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+model PostAudience {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+}
+
+enum PostPrivacy {
+  PUBLIC
+  FRIENDS
+  FRIENDS_OF_FRIENDS
+  ONLY_ME
+  CUSTOM
 }

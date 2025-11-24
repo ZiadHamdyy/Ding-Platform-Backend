@@ -47,7 +47,9 @@ function setupMiddlewares(app: NestExpressApplication) {
 }
 
 function setupRateLimiter(app: NestExpressApplication) {
-  app.use(rateLimit({ windowMs: 60000, max: 100 }));
+  const windowMs = get('RATE_LIMIT_WINDOW_MS').default(60000).asIntPositive();
+  const max = get('RATE_LIMIT_MAX_REQUESTS').default(100).asIntPositive();
+  app.use(rateLimit({ windowMs, max }));
 }
 
 function setupStaticFileServing(app: NestExpressApplication) {

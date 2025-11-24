@@ -278,4 +278,44 @@ export class NotificationService {
       data: { followerId },
     });
   }
+
+  async notifyPostLike(likerId: string, postAuthorId: string, postId: string) {
+    if (likerId === postAuthorId) return; // Don't notify self-likes
+
+    const liker = await this.prisma.user.findUnique({
+      where: { id: likerId },
+      select: { name: true },
+    });
+
+    return this.createNotification({
+      userId: postAuthorId,
+      actorId: likerId,
+      type: NotificationType.POST_LIKE,
+      title: 'New Like',
+      message: `${liker?.name || 'Someone'} liked your post`,
+      data: { postId, likerId },
+    });
+  }
+
+  async notifyPostComment(commenterId: string, postAuthorId: string, postId: string, commentContent: string) {
+    if (commenterId === postAuthorId) return; // Don't notify self-comments
+
+    const commenter = await this.prisma.user.findUnique({
+      where: { id: commenterId },
+      select: { name: true },
+    });
+
+    const truncatedContent = commentContent.length > 50 
+      ? commentContent.substring(0, 50) + '...' 
+      : commentContent;
+
+    return this.createNotification({
+      userId: postAuthorId,
+      actorId: commenterId,
+      type: NotificationType.POST_COMMENT,
+      title: 'New Comment',
+      message: `${commenter?.name || 'Someone'} commented: "${truncatedContent}"`,
+      data: { postId, commenterId },
+    });
+  }
 }
