@@ -275,6 +275,48 @@ export class SocialService {
     }
   }
 
+  async rejectFriendRequest(
+    fromUserId: string,
+    toUserId: string,
+  ): Promise<void> {
+    const session = this.neo4jservice.getSession();
+    try {
+      // Ensure both users exist before proceeding
+      const fromUserExists = await this.userExists(fromUserId);
+      const toUserExists = await this.userExists(toUserId);
+      if (!fromUserExists || !toUserExists) {
+        throw new GenericHttpException(
+          ERROR_MESSAGES.USER_NOT_FOUND_IN_SOCIAL,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      const requestExists = await this.friendRequestExists(fromUserId, toUserId);
+      if (!requestExists) {
+        throw new GenericHttpException(
+          ERROR_MESSAGES.FRIEND_REQUEST_NOT_FOUND,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      await session.run(
+        `MATCH (from:User {userId: $fromUserId})-[r:FRIEND_REQUEST]->(to:User {userId: $toUserId})
+             DELETE r`,
+        { fromUserId, toUserId },
+      );
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      throw new GenericHttpException(
+        ERROR_MESSAGES.REJECT_FRIEND_REQUEST_FAILED,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
   async removeFriend(userId1: string, userId2: string): Promise<void> {
     const session = this.neo4jservice.getSession();
     try {

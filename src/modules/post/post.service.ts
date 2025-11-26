@@ -588,4 +588,15 @@ export class PostService {
       },
     };
   }
+
+  async getPostsCount(profileId: string) {
+    const postsCount = await this.prisma.post.count({
+      where: {
+        authorId: profileId,
+        isDeleted: false,
+      },
+    });
+
+    return { postsCount };
+  }
 }

@@ -111,6 +111,8 @@ export const ERROR_MESSAGES = {
   FRIEND_REQUEST_FAILED: 'Failed to send friend request. Please try again',
   ACCEPT_FRIEND_REQUEST_FAILED:
     'Failed to accept friend request. Please try again',
+  REJECT_FRIEND_REQUEST_FAILED:
+    'Failed to reject friend request. Please try again',
   REMOVE_FRIEND_FAILED: 'Failed to remove friend. Please try again',
   GET_FRIENDS_FAILED: 'Failed to retrieve friends. Please try again',
   GET_FRIEND_REQUESTS_FAILED:

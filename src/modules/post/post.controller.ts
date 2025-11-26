@@ -28,6 +28,18 @@ export class PostController {
     return this.postService.getAllPosts(userId);
   }
 
+  @Get('/count')
+  @UseGuards(JwtAuthenticationGuard)
+  async getMyPostsCount(@currentUser('id') userId: string) {
+    return this.postService.getPostsCount(userId);
+  }
+
+  @Get('/count/:profileId')
+  @UseGuards(JwtAuthenticationGuard)
+  async getProfilePostsCount(@Param('profileId') profileId: string) {
+    return this.postService.getPostsCount(profileId);
+  }
+
   @Get('/:id')
   async getPostById(
     @Param('id') postId: string,
