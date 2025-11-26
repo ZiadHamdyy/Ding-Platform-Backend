@@ -1,20 +1,28 @@
 import { Expose, Type } from 'class-transformer';
-import { UserNode, RecommendedUser } from '../../../../common/interfaces/user.interface';
 
 export class MessageResponse {
   @Expose()
   message: string;
 }
 
-export class FriendResponse implements UserNode {
+class UserBasicInfo {
+  @Expose()
+  name: string | null;
+
+  @Expose()
+  image: string | null;
+}
+
+export class FriendResponse {
   @Expose()
   userId: string;
 
   @Expose()
-  username: string;
+  bio: string | null;
 
   @Expose()
-  name?: string;
+  @Type(() => UserBasicInfo)
+  user: UserBasicInfo;
 }
 
 class FriendsListMeta {
@@ -44,15 +52,16 @@ export class FriendsListResponse {
   meta: FriendsListMeta;
 }
 
-export class RecommendedUserResponse implements RecommendedUser {
+export class RecommendedUserResponse {
   @Expose()
   userId: string;
 
   @Expose()
-  username: string;
+  bio: string | null;
 
   @Expose()
-  name?: string;
+  @Type(() => UserBasicInfo)
+  user: UserBasicInfo;
 
   @Expose()
   score: number;
@@ -62,9 +71,6 @@ export class RecommendedUserResponse implements RecommendedUser {
 
   @Expose()
   reason: string;
-
-  @Expose()
-  location?: string;
 }
 
 class RecommendationsListMeta {

@@ -5,6 +5,7 @@ import { UserNode, RecommendedUser } from 'src/common/interfaces/user.interface'
 import { GenericHttpException } from 'src/common/application/exceptions/generic-http-exception';
 import { ERROR_MESSAGES } from 'src/common/constants/error-messages.constant';
 import neo4j from 'neo4j-driver';
+import { Profile, User } from '@prisma/client';
 
 @Injectable()
 export class SocialService {
@@ -69,25 +70,12 @@ export class SocialService {
     }
   }
 
-  async createUserNode(
-    userId: string,
-    name: string | undefined,
-    username: string,
-    location: string | undefined,
-    coverPhoto: string | undefined,
-  ): Promise<void> {
+  async createUserNode(userId: string): Promise<void> {
     const session = this.neo4jservice.getSession();
     try {
       await session.run(
-        `MERGE (u:User {userId: $userId})
-             SET u.id = $userId, u.name = $name, u.username = $username, u.location = $location, u.coverPhoto = $coverPhoto, u.updatedAt = datetime()`,
-        { 
-          userId, 
-          name: name ?? null, 
-          username, 
-          location: location ?? null, 
-          coverPhoto: coverPhoto ?? null,
-        },
+        `MERGE (u:User {userId: $userId})`,
+        { userId },
       );
     } finally {
       await session.close();
@@ -303,7 +291,7 @@ export class SocialService {
     offset = 0,
     limit = 10,
   ): Promise<{
-    data: UserNode[];
+    data: (Profile & { user: User })[];
     meta: {
       limit: number;
       offset: number;
@@ -321,28 +309,12 @@ export class SocialService {
       if (!userExists) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { 
-            id: true, 
-            email: true, 
-            name: true,
-            Profile: {
-              select: {
-                location: true,
-                coverPhoto: true,
-              },
-            },
-          },
+          select: { id: true },
         });
 
         if (user) {
           // Auto-create the node in Neo4j
-          await this.createUserNode(
-            user.id,
-            user.name || undefined,
-            user.email,
-            user.Profile?.location || undefined,
-            user.Profile?.coverPhoto || undefined,
-          );
+          await this.createUserNode(user.id);
           userExists = true;
         } else {
           throw new GenericHttpException(
@@ -378,20 +350,32 @@ export class SocialService {
       );
       const total = this.toNumber(countResult.records[0]?.get('total') || 0);
 
-      // Use Neo4j's integer type to ensure it's sent as an integer, not a float
+      // Get friend userIds from Neo4j
       const result = await session.run(
         `MATCH (u:User {userId: $userId})-[:FRIENDS]->(friend:User)
-             RETURN friend.userId as userId, friend.username as username, friend.name as name
+             RETURN friend.userId as userId
              SKIP $offset
              LIMIT $limit`,
         { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
       
-      const friends = result.records.map((r) => ({
-        userId: r.get('userId'),
-        username: r.get('username'),
-        name: r.get('name'),
-      }));
+      const friendIds = result.records.map((r) => r.get('userId'));
+
+      // Batch fetch profile details from PostgreSQL with all data
+      const profiles = await this.prisma.profile.findMany({
+        where: { userId: { in: friendIds } },
+        include: {
+          user: true,
+        },
+      });
+
+      // Create a map for quick lookup
+      const profileMap = new Map(profiles.map((p) => [p.userId, p]));
+
+      // Return full profile data, preserving order from Neo4j
+      const friends = friendIds
+        .map((id) => profileMap.get(id))
+        .filter((p): p is Profile & { user: User } => p !== undefined);
 
       // Calculate pagination metadata
       const hasMore = offsetInt + limitInt < total;
@@ -427,7 +411,7 @@ export class SocialService {
     offset = 0,
     limit = 10,
   ): Promise<{
-    data: UserNode[];
+    data: (Profile & { user: User })[];
     meta: {
       limit: number;
       offset: number;
@@ -445,28 +429,12 @@ export class SocialService {
       if (!userExists) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { 
-            id: true, 
-            email: true, 
-            name: true,
-            Profile: {
-              select: {
-                location: true,
-                coverPhoto: true,
-              },
-            },
-          },
+          select: { id: true },
         });
 
         if (user) {
           // Auto-create the node in Neo4j
-          await this.createUserNode(
-            user.id,
-            user.name || undefined,
-            user.email,
-            user.Profile?.location || undefined,
-            user.Profile?.coverPhoto || undefined,
-          );
+          await this.createUserNode(user.id);
           userExists = true;
         } else {
           throw new GenericHttpException(
@@ -502,20 +470,32 @@ export class SocialService {
       );
       const total = this.toNumber(countResult.records[0]?.get('total') || 0);
 
-      // Use Neo4j's integer type to ensure it's sent as an integer, not a float
+      // Get requester userIds from Neo4j
       const result = await session.run(
         `MATCH (from:User)-[:FRIEND_REQUEST]->(to:User {userId: $userId})
-             RETURN from.userId as userId, from.username as username, from.name as name
+             RETURN from.userId as userId
              SKIP $offset
              LIMIT $limit`,
         { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
       
-      const requests = result.records.map((r) => ({
-        userId: r.get('userId'),
-        username: r.get('username'),
-        name: r.get('name'),
-      }));
+      const requesterIds = result.records.map((r) => r.get('userId'));
+
+      // Batch fetch profile details from PostgreSQL with all data
+      const profiles = await this.prisma.profile.findMany({
+        where: { userId: { in: requesterIds } },
+        include: {
+          user: true,
+        },
+      });
+
+      // Create a map for quick lookup
+      const profileMap = new Map(profiles.map((p) => [p.userId, p]));
+
+      // Return full profile data, preserving order from Neo4j
+      const requests = requesterIds
+        .map((id) => profileMap.get(id))
+        .filter((p): p is Profile & { user: User } => p !== undefined);
 
       // Calculate pagination metadata
       const hasMore = offsetInt + limitInt < total;
@@ -640,7 +620,7 @@ export class SocialService {
     offset = 0,
     limit = 10,
   ): Promise<{
-    data: UserNode[];
+    data: (Profile & { user: User })[];
     meta: {
       limit: number;
       offset: number;
@@ -658,28 +638,12 @@ export class SocialService {
       if (!userExists) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { 
-            id: true, 
-            email: true, 
-            name: true,
-            Profile: {
-              select: {
-                location: true,
-                coverPhoto: true,
-              },
-            },
-          },
+          select: { id: true },
         });
 
         if (user) {
           // Auto-create the node in Neo4j
-          await this.createUserNode(
-            user.id,
-            user.name || undefined,
-            user.email,
-            user.Profile?.location || undefined,
-            user.Profile?.coverPhoto || undefined,
-          );
+          await this.createUserNode(user.id);
           userExists = true;
         } else {
           throw new GenericHttpException(
@@ -715,20 +679,32 @@ export class SocialService {
       );
       const total = this.toNumber(countResult.records[0]?.get('total') || 0);
 
-      // Use Neo4j's integer type to ensure it's sent as an integer, not a float
+      // Get follower userIds from Neo4j
       const result = await session.run(
         `MATCH (follower:User)-[:FOLLOWS]->(u:User {userId: $userId})
-         RETURN follower.userId as userId, follower.username as username, follower.name as name
+         RETURN follower.userId as userId
          SKIP $offset
          LIMIT $limit`,
         { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
       
-      const followers = result.records.map((r) => ({
-        userId: r.get('userId'),
-        username: r.get('username'),
-        name: r.get('name'),
-      }));
+      const followerIds = result.records.map((r) => r.get('userId'));
+
+      // Batch fetch profile details from PostgreSQL with all data
+      const profiles = await this.prisma.profile.findMany({
+        where: { userId: { in: followerIds } },
+        include: {
+          user: true,
+        },
+      });
+
+      // Create a map for quick lookup
+      const profileMap = new Map(profiles.map((p) => [p.userId, p]));
+
+      // Return full profile data, preserving order from Neo4j
+      const followers = followerIds
+        .map((id) => profileMap.get(id))
+        .filter((p): p is Profile & { user: User } => p !== undefined);
 
       // Calculate pagination metadata
       const hasMore = offsetInt + limitInt < total;
@@ -763,7 +739,7 @@ export class SocialService {
     offset = 0,
     limit = 10,
   ): Promise<{
-    data: UserNode[];
+    data: (Profile & { user: User })[];
     meta: {
       limit: number;
       offset: number;
@@ -781,28 +757,12 @@ export class SocialService {
       if (!userExists) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { 
-            id: true, 
-            email: true, 
-            name: true,
-            Profile: {
-              select: {
-                location: true,
-                coverPhoto: true,
-              },
-            },
-          },
+          select: { id: true },
         });
 
         if (user) {
           // Auto-create the node in Neo4j
-          await this.createUserNode(
-            user.id,
-            user.name || undefined,
-            user.email,
-            user.Profile?.location || undefined,
-            user.Profile?.coverPhoto || undefined,
-          );
+          await this.createUserNode(user.id);
           userExists = true;
         } else {
           throw new GenericHttpException(
@@ -838,20 +798,32 @@ export class SocialService {
       );
       const total = this.toNumber(countResult.records[0]?.get('total') || 0);
 
-      // Use Neo4j's integer type to ensure it's sent as an integer, not a float
+      // Get following userIds from Neo4j
       const result = await session.run(
         `MATCH (u:User {userId: $userId})-[:FOLLOWS]->(following:User)
-         RETURN following.userId as userId, following.username as username, following.name as name
+         RETURN following.userId as userId
          SKIP $offset
          LIMIT $limit`,
         { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
       
-      const following = result.records.map((r) => ({
-        userId: r.get('userId'),
-        username: r.get('username'),
-        name: r.get('name'),
-      }));
+      const followingIds = result.records.map((r) => r.get('userId'));
+
+      // Batch fetch profile details from PostgreSQL with all data
+      const profiles = await this.prisma.profile.findMany({
+        where: { userId: { in: followingIds } },
+        include: {
+          user: true,
+        },
+      });
+
+      // Create a map for quick lookup
+      const profileMap = new Map(profiles.map((p) => [p.userId, p]));
+
+      // Return full profile data, preserving order from Neo4j
+      const following = followingIds
+        .map((id) => profileMap.get(id))
+        .filter((p): p is Profile & { user: User } => p !== undefined);
 
       // Calculate pagination metadata
       const hasMore = offsetInt + limitInt < total;
@@ -935,7 +907,7 @@ export class SocialService {
     offset = 0,
     limit = 10,
   ): Promise<{
-    data: RecommendedUser[];
+    data: (Profile & { user: User; score: number; mutualFriends: number; reason: string })[];
     meta: {
       limit: number;
       offset: number;
@@ -953,28 +925,12 @@ export class SocialService {
       if (!userExists) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { 
-            id: true, 
-            email: true, 
-            name: true,
-            Profile: {
-              select: {
-                location: true,
-                coverPhoto: true,
-              },
-            },
-          },
+          select: { id: true },
         });
 
         if (user) {
           // Auto-create the node in Neo4j
-          await this.createUserNode(
-            user.id,
-            user.name || undefined,
-            user.email,
-            user.Profile?.location || undefined,
-            user.Profile?.coverPhoto || undefined,
-          );
+          await this.createUserNode(user.id);
           userExists = true;
         } else {
           throw new GenericHttpException(
@@ -1007,9 +963,10 @@ export class SocialService {
         `MATCH (u:User {userId: $userId})
          
          // Find friends of friends (not already friends)
-         MATCH (u)-[:FRIENDS]->(friend)-[:FRIENDS]->(recommendation:User)
-         WHERE recommendation.userId <> $userId
-         AND NOT (u)-[:FRIENDS]-(recommendation)
+        MATCH (u)-[:FRIENDS]->(friend)-[:FRIENDS]->(recommendation:User)
+        WHERE recommendation.userId <> $userId
+        AND NOT (u)-[:FRIENDS]-(recommendation)
+        AND NOT (u)-[:FRIEND_REQUEST]->(recommendation)
          
          WITH DISTINCT recommendation
          RETURN count(recommendation) as total`,
@@ -1017,13 +974,23 @@ export class SocialService {
       );
       const total = this.toNumber(countResult.records[0]?.get('total') || 0);
 
+      // Get current user's location from PostgreSQL for location boost calculation
+      const currentProfile = await this.prisma.profile.findUnique({
+        where: { userId },
+        select: {
+          location: true,
+        },
+      });
+      const userLocation = currentProfile?.location || null;
+
       const result = await session.run(
         `MATCH (u:User {userId: $userId})
          
          // Find friends of friends (not already friends)
-         MATCH (u)-[:FRIENDS]->(friend)-[:FRIENDS]->(recommendation:User)
-         WHERE recommendation.userId <> $userId
-         AND NOT (u)-[:FRIENDS]-(recommendation)
+        MATCH (u)-[:FRIENDS]->(friend)-[:FRIENDS]->(recommendation:User)
+        WHERE recommendation.userId <> $userId
+        AND NOT (u)-[:FRIENDS]-(recommendation)
+        AND NOT (u)-[:FRIEND_REQUEST]->(recommendation)
          
          WITH recommendation, count(DISTINCT friend) as mutualFriends
          
@@ -1032,21 +999,14 @@ export class SocialService {
          OPTIONAL MATCH (u)-[f1:FOLLOWS]->(recommendation)
          OPTIONAL MATCH (recommendation)-[f2:FOLLOWS]->(u)
          
-         WITH recommendation, mutualFriends, u.location as userLocation,
+         WITH recommendation, mutualFriends,
               CASE WHEN f1 IS NOT NULL THEN 2 ELSE 0 END +
               CASE WHEN f2 IS NOT NULL THEN 1 ELSE 0 END as followBoost
          
-         // Location boost: +20 points if same location
-         WITH recommendation, mutualFriends, userLocation, followBoost,
-              CASE WHEN userLocation IS NOT NULL AND recommendation.location = userLocation THEN 20 ELSE 0 END as locationBoost
-         
-         WITH recommendation, mutualFriends, followBoost, locationBoost,
-              (mutualFriends * 10 + followBoost + locationBoost) as score
+         WITH recommendation, mutualFriends, followBoost,
+              (mutualFriends * 10 + followBoost) as score
          
          RETURN recommendation.userId as userId,
-                recommendation.username as username,
-                recommendation.name as name,
-                recommendation.location as location,
                 mutualFriends,
                 score,
                 'mutual_friends' as reason
@@ -1056,23 +1016,54 @@ export class SocialService {
         { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
       
-      // Map results and deduplicate by userId (in case of any duplicates)
-      const recommendationsMap = new Map<string, any>();
+      // Extract userIds and create a map of Neo4j results
+      const recommendationData = new Map<string, { mutualFriends: number; score: number; reason: string }>();
+      const recommendedUserIds: string[] = [];
+      
       result.records.forEach((r) => {
-        const userId = r.get('userId');
-        if (!recommendationsMap.has(userId)) {
-          recommendationsMap.set(userId, {
-            userId: userId,
-            username: r.get('username'),
-            name: r.get('name'),
-            location: r.get('location'),
-            score: this.toNumber(r.get('score')),
+        const recUserId = r.get('userId');
+        if (!recommendationData.has(recUserId)) {
+          recommendedUserIds.push(recUserId);
+          recommendationData.set(recUserId, {
             mutualFriends: this.toNumber(r.get('mutualFriends')),
+            score: this.toNumber(r.get('score')),
             reason: r.get('reason'),
           });
         }
       });
-      const recommendations = Array.from(recommendationsMap.values());
+
+      // Batch fetch profile details from PostgreSQL with all data
+      const profiles = await this.prisma.profile.findMany({
+        where: { userId: { in: recommendedUserIds } },
+        include: {
+          user: true,
+        },
+      });
+
+      // Create a map for quick lookup
+      const profileMap = new Map(profiles.map((p) => [p.userId, p]));
+
+      // Map to RecommendedUser format with full profile data, adding location boost to score
+      const recommendations = recommendedUserIds
+        .map((id) => {
+          const profile = profileMap.get(id);
+          const neo4jData = recommendationData.get(id);
+          if (!profile || !neo4jData) return null;
+
+          // Calculate location boost (if both users have location and they match)
+          const locationBoost =
+            userLocation && profile.location && userLocation === profile.location ? 20 : 0;
+          const finalScore = neo4jData.score + locationBoost;
+
+          return {
+            ...profile,
+            score: finalScore,
+            mutualFriends: neo4jData.mutualFriends,
+            reason: neo4jData.reason,
+          };
+        })
+        .filter((r): r is (Profile & { user: User; score: number; mutualFriends: number; reason: string }) => r !== null)
+        .sort((a, b) => b.score - a.score); // Re-sort by final score including location boost
 
       // Calculate pagination metadata
       const hasMore = offsetInt + limitInt < total;
@@ -1114,7 +1105,7 @@ export class SocialService {
     offset = 0,
     limit = 10,
   ): Promise<{
-    data: RecommendedUser[];
+    data: (Profile & { user: User; score: number; mutualFriends: number; reason: string })[];
     meta: {
       limit: number;
       offset: number;
@@ -1132,28 +1123,12 @@ export class SocialService {
       if (!userExists) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { 
-            id: true, 
-            email: true, 
-            name: true,
-            Profile: {
-              select: {
-                location: true,
-                coverPhoto: true,
-              },
-            },
-          },
+          select: { id: true },
         });
 
         if (user) {
           // Auto-create the node in Neo4j
-          await this.createUserNode(
-            user.id,
-            user.name || undefined,
-            user.email,
-            user.Profile?.location || undefined,
-            user.Profile?.coverPhoto || undefined,
-          );
+          await this.createUserNode(user.id);
           userExists = true;
         } else {
           throw new GenericHttpException(
@@ -1196,6 +1171,15 @@ export class SocialService {
       );
       const total = this.toNumber(countResult.records[0]?.get('total') || 0);
 
+      // Get current user's location from PostgreSQL for location boost calculation
+      const currentProfile = await this.prisma.profile.findUnique({
+        where: { userId },
+        select: {
+          location: true,
+        },
+      });
+      const userLocation = currentProfile?.location || null;
+
       const result = await session.run(
         `MATCH (u:User {userId: $userId})
          
@@ -1206,7 +1190,7 @@ export class SocialService {
          
          WITH recommendation, count(DISTINCT following) as commonFollowing
          
-         // Re-match user for location and follow-back check
+         // Re-match user for follow-back check
          MATCH (u:User {userId: $userId})
          
          // Count followers of the recommendation (popularity)
@@ -1216,20 +1200,13 @@ export class SocialService {
          // Check if they follow you back
          OPTIONAL MATCH (recommendation)-[fb:FOLLOWS]->(u)
          
-         WITH recommendation, commonFollowing, popularity, u.location as userLocation,
+         WITH recommendation, commonFollowing, popularity,
               CASE WHEN fb IS NOT NULL THEN 5 ELSE 0 END as followBackBonus
          
-         // Location boost: +20 points if same location
-         WITH recommendation, commonFollowing, popularity, followBackBonus, userLocation,
-              CASE WHEN userLocation IS NOT NULL AND recommendation.location = userLocation THEN 20 ELSE 0 END as locationBoost
-         
-         WITH recommendation, commonFollowing, popularity, followBackBonus, locationBoost,
-              (commonFollowing * 10 + (popularity / 10.0) + followBackBonus + locationBoost) as score
+         WITH recommendation, commonFollowing, popularity, followBackBonus,
+              (commonFollowing * 10 + (popularity / 10.0) + followBackBonus) as score
          
          RETURN recommendation.userId as userId,
-                recommendation.username as username,
-                recommendation.name as name,
-                recommendation.location as location,
                 commonFollowing as mutualFriends,
                 score,
                 'common_following' as reason
@@ -1239,23 +1216,54 @@ export class SocialService {
         { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
       
-      // Map results and deduplicate by userId (in case of any duplicates)
-      const recommendationsMap = new Map<string, any>();
+      // Extract userIds and create a map of Neo4j results
+      const recommendationData = new Map<string, { mutualFriends: number; score: number; reason: string }>();
+      const recommendedUserIds: string[] = [];
+      
       result.records.forEach((r) => {
-        const userId = r.get('userId');
-        if (!recommendationsMap.has(userId)) {
-          recommendationsMap.set(userId, {
-            userId: userId,
-            username: r.get('username'),
-            name: r.get('name'),
-            location: r.get('location'),
-            score: this.toNumber(r.get('score')),
+        const recUserId = r.get('userId');
+        if (!recommendationData.has(recUserId)) {
+          recommendedUserIds.push(recUserId);
+          recommendationData.set(recUserId, {
             mutualFriends: this.toNumber(r.get('mutualFriends')),
+            score: this.toNumber(r.get('score')),
             reason: r.get('reason'),
           });
         }
       });
-      const recommendations = Array.from(recommendationsMap.values());
+
+      // Batch fetch profile details from PostgreSQL with all data
+      const profiles = await this.prisma.profile.findMany({
+        where: { userId: { in: recommendedUserIds } },
+        include: {
+          user: true,
+        },
+      });
+
+      // Create a map for quick lookup
+      const profileMap = new Map(profiles.map((p) => [p.userId, p]));
+
+      // Map to RecommendedUser format with full profile data, adding location boost to score
+      const recommendations = recommendedUserIds
+        .map((id) => {
+          const profile = profileMap.get(id);
+          const neo4jData = recommendationData.get(id);
+          if (!profile || !neo4jData) return null;
+
+          // Calculate location boost (if both users have location and they match)
+          const locationBoost =
+            userLocation && profile.location && userLocation === profile.location ? 20 : 0;
+          const finalScore = neo4jData.score + locationBoost;
+
+          return {
+            ...profile,
+            score: finalScore,
+            mutualFriends: neo4jData.mutualFriends,
+            reason: neo4jData.reason,
+          };
+        })
+        .filter((r): r is (Profile & { user: User; score: number; mutualFriends: number; reason: string }) => r !== null)
+        .sort((a, b) => b.score - a.score); // Re-sort by final score including location boost
 
       // Calculate pagination metadata
       const hasMore = offsetInt + limitInt < total;
@@ -1294,7 +1302,7 @@ export class SocialService {
     offset = 0,
     limit = 10,
   ): Promise<{
-    data: UserNode[];
+    data: (Profile & { user: User })[];
     meta: {
       limit: number;
       offset: number;
@@ -1342,20 +1350,32 @@ export class SocialService {
       );
       const total = this.toNumber(countResult.records[0]?.get('total') || 0);
 
-      // Use Neo4j's integer type to ensure it's sent as an integer, not a float
+      // Get mutual friend userIds from Neo4j
       const result = await session.run(
         `MATCH (u1:User {userId: $userId1})-[:FRIENDS]->(mutual:User)<-[:FRIENDS]-(u2:User {userId: $userId2})
-         RETURN mutual.userId as userId, mutual.username as username, mutual.name as name
+         RETURN mutual.userId as userId
          SKIP $offset
          LIMIT $limit`,
         { userId1, userId2, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
       
-      const mutualFriends = result.records.map((r) => ({
-        userId: r.get('userId'),
-        username: r.get('username'),
-        name: r.get('name'),
-      }));
+      const mutualFriendIds = result.records.map((r) => r.get('userId'));
+
+      // Batch fetch profile details from PostgreSQL with all data
+      const profiles = await this.prisma.profile.findMany({
+        where: { userId: { in: mutualFriendIds } },
+        include: {
+          user: true,
+        },
+      });
+
+      // Create a map for quick lookup
+      const profileMap = new Map(profiles.map((p) => [p.userId, p]));
+
+      // Return full profile data, preserving order from Neo4j
+      const mutualFriends = mutualFriendIds
+        .map((id) => profileMap.get(id))
+        .filter((p): p is Profile & { user: User } => p !== undefined);
 
       // Calculate pagination metadata
       const hasMore = offsetInt + limitInt < total;
@@ -1398,28 +1418,12 @@ export class SocialService {
       if (!userExists) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { 
-            id: true, 
-            email: true, 
-            name: true,
-            Profile: {
-              select: {
-                location: true,
-                coverPhoto: true,
-              },
-            },
-          },
+          select: { id: true },
         });
 
         if (user) {
           // Auto-create the node in Neo4j
-          await this.createUserNode(
-            user.id,
-            user.name || undefined,
-            user.email,
-            user.Profile?.location || undefined,
-            user.Profile?.coverPhoto || undefined,
-          );
+          await this.createUserNode(user.id);
           userExists = true;
         } else {
           throw new GenericHttpException(
