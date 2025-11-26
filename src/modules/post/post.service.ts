@@ -1,6 +1,6 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpStatus, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from 'src/configs/database/database.service';
-import { HelperService } from 'src/common/services/helper/helper.service';
+import { HelperService } from 'src/common/utils/helper/helper.service';
 import { CloudinaryService } from 'src/common/services/cloudinary/cloudinary.service';
 import { GenericHttpException } from 'src/common/application/exceptions/generic-http-exception';
 import { ERROR_MESSAGES } from 'src/common/constants/error-messages.constant';
@@ -258,7 +258,7 @@ export class PostService {
         postId,
         updatedPost.content,
         updatedPost.mediaUrls,
-        updatedPost.privacy,
+        updatedPost.privacy as PostPrivacy,
         'UPDATED',
       );
 
@@ -301,7 +301,7 @@ export class PostService {
         postId,
         post.content,
         post.mediaUrls,
-        post.privacy,
+        post.privacy as PostPrivacy,
         'DELETED',
       );
 

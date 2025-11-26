@@ -1088,6 +1088,7 @@ export class SocialService {
         WHERE recommendation.userId <> $userId
         AND NOT (u)-[:FRIENDS]-(recommendation)
         AND NOT (u)-[:FRIEND_REQUEST]->(recommendation)
+        AND NOT (recommendation)-[:FRIEND_REQUEST]->(u)
          
          WITH DISTINCT recommendation
          RETURN count(recommendation) as total`,
@@ -1112,6 +1113,7 @@ export class SocialService {
         WHERE recommendation.userId <> $userId
         AND NOT (u)-[:FRIENDS]-(recommendation)
         AND NOT (u)-[:FRIEND_REQUEST]->(recommendation)
+        AND NOT (recommendation)-[:FRIEND_REQUEST]->(u)
          
          WITH recommendation, count(DISTINCT friend) as mutualFriends
          

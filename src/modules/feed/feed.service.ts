@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../configs/database/database.service';
 import { Neo4jService } from '../../configs/neo4j/neo4j.service';
-import { FeedItemDto } from './dtos/response/feed.response';
-import { PaginationDto } from '../../common/dtos/pagination.dto'; // assume exists or create simple interface
+import { FeedItemDto, PaginationDto } from './dtos/response/feed.response';
 
 @Injectable()
 export class FeedService {
@@ -44,7 +43,7 @@ export class FeedService {
         id: p.id,
         content: p.content,
         authorId: p.authorId,
-        authorName: p.author?.name ?? null,
+        authorName: p.author?.name ?? undefined,
         createdAt: p.createdAt,
         mediaUrls: p.mediaUrls,
         privacy: p.privacy,

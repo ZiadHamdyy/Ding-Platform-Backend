@@ -17,18 +17,23 @@ export class PrivacyService {
   }
 
   async updatePrivacySettings(userId: string, dto: UpdatePrivacyDto): Promise<PrivacyResponseDto> {
-    const data: Prisma.ProfilePrivacyUpdateInput = {};
-    // map only defined fields
+    const updateData: Prisma.ProfilePrivacyUpdateInput = {};
+    const createData: Prisma.ProfilePrivacyUncheckedCreateInput = {
+      profileId: userId,
+    };
+
     Object.entries(dto).forEach(([key, value]) => {
       if (value !== undefined) {
-        // @ts-ignore - dynamic assignment
-        data[key] = value;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (updateData as any)[key] = value;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (createData as any)[key] = value;
       }
     });
     const updated = await this.prisma.profilePrivacy.upsert({
       where: { profileId: userId },
-      create: { profileId: userId, ...data },
-      update: data,
+      create: createData,
+      update: updateData,
     });
     return updated as any;
   }
