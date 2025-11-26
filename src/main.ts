@@ -1,4 +1,3 @@
-import 'tsconfig-paths/register';
 import helmet from 'helmet';
 import { get } from 'env-var';
 import { json, static as staticMiddleware } from 'express';
