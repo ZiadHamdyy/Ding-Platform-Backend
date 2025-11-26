@@ -1,7 +1,7 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreatePostDto, PostPrivacy } from './create_post.dto';
 import { IsOptional, IsString, MaxLength, IsEnum, IsArray, IsUUID } from 'class-validator';
-import { POST_CONSTANTS } from 'src/common/constants/post.constants';
+import { POST_CONSTANTS } from '../../../common/constants/post.constants';
 
 export class UpdatePostDto {
   @IsOptional()

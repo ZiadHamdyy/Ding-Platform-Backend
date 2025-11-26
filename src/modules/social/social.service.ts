@@ -1,9 +1,9 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
-import { Neo4jService } from 'src/configs/neo4j/neo4j.service';
-import { DatabaseService } from 'src/configs/database/database.service';
-import { UserNode } from 'src/common/interfaces/user.interface';
-import { GenericHttpException } from 'src/common/application/exceptions/generic-http-exception';
-import { ERROR_MESSAGES } from 'src/common/constants/error-messages.constant';
+import { Neo4jService } from '../../configs/neo4j/neo4j.service';
+import { DatabaseService } from '../../configs/database/database.service';
+import { UserNode } from '../../common/interfaces/user.interface';
+import { GenericHttpException } from '../../common/application/exceptions/generic-http-exception';
+import { ERROR_MESSAGES } from '../../common/constants/error-messages.constant';
 import neo4j from 'neo4j-driver';
 import { Profile, User } from '@prisma/client';
 import { NotificationService } from '../notification/notification.service';
