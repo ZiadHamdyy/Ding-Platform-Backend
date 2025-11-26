@@ -51,6 +51,21 @@ export class ProfileController {
     return await this.profileService.searchProfiles(filters);
   }
 
+  @Get('me')
+  @UseGuards(JwtAuthenticationGuard)
+  @HttpCode(HttpStatus.OK)
+  @Serialize(ProfileResponse)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get current user profile (requires authentication)',
+  })
+  async getCurrentProfile(@currentUser() user: currentUserType) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const userId: string = user.id;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return await this.profileService.getProfile(userId, userId);
+  }
+
   @Get(':userId')
   @HttpCode(HttpStatus.OK)
   @Serialize(ProfileResponse)
@@ -66,6 +81,8 @@ export class ProfileController {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return await this.profileService.getProfile(userId, requesterId);
   }
+
+  
 
   @Put()
   @UseGuards(JwtAuthenticationGuard)

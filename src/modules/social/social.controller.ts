@@ -79,6 +79,17 @@ export class SocialController {
     return { message: 'Friend request accepted' };
   }
 
+  @Post('friends/reject/:fromUserId')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(MessageResponse)
+  async rejectFriendRequest(
+    @Param('fromUserId') fromUserId: string,
+    @currentUser() user: currentUserType,
+  ) {
+    await this.socialservice.rejectFriendRequest(fromUserId, user.id);
+    return { message: 'Friend request rejected' };
+  }
+
   // DELETE routes - parameterized routes
   @Delete('friends/:userId')
   @HttpCode(HttpStatus.OK)

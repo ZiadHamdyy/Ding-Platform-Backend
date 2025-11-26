@@ -16,7 +16,7 @@ import { UploadPostFiles } from 'src/common/decorators/upload-post-files.decorat
 import { CreatePostDto } from './dtos/create_post.dto';
 import { UpdatePostDto } from './dtos/update_post.dto';
 import { JwtAuthenticationGuard } from 'src/common/guards/strategy.guards/jwt.guard';
-import { CurrentUser } from 'src/common/decorators/currentUser.decorator';
+import { currentUser } from 'src/common/decorators/currentUser.decorator';
 import { CreateCommentDto } from './dtos/create_comment.dto';
 
 @Controller('posts')
@@ -26,6 +26,18 @@ export class PostController {
   @Get('/')
   async getAllPosts(@currentUser('id') userId?: string) {
     return this.postService.getAllPosts(userId);
+  }
+
+  @Get('/count')
+  @UseGuards(JwtAuthenticationGuard)
+  async getMyPostsCount(@currentUser('id') userId: string) {
+    return this.postService.getPostsCount(userId);
+  }
+
+  @Get('/count/:profileId')
+  @UseGuards(JwtAuthenticationGuard)
+  async getProfilePostsCount(@Param('profileId') profileId: string) {
+    return this.postService.getPostsCount(profileId);
   }
 
   @Get('/:id')
@@ -60,11 +72,13 @@ export class PostController {
     @currentUser('id') userId: string,
   ) {
     return this.postService.updatePost(postId, userId, updatePostDto);
-    @Post('/:id/like')
+  }
+
+  @Post('/:id/like')
   @UseGuards(JwtAuthenticationGuard)
   async toggleLike(
     @Param('id') postId: string,
-    @CurrentUser('id') userId: string,
+    @currentUser('id') userId: string,
   ) {
     return this.postService.toggleLike(postId, userId);
   }
@@ -73,7 +87,7 @@ export class PostController {
   @UseGuards(JwtAuthenticationGuard)
   async createComment(
     @Param('id') postId: string,
-    @CurrentUser('id') userId: string,
+    @currentUser('id') userId: string,
     @Body() createCommentDto: CreateCommentDto,
   ) {
     return this.postService.createComment(postId, userId, createCommentDto);
@@ -83,7 +97,7 @@ export class PostController {
   @UseGuards(JwtAuthenticationGuard)
   async deleteComment(
     @Param('id') commentId: string,
-    @CurrentUser('id') userId: string,
+    @currentUser('id') userId: string,
   ) {
     return this.postService.deleteComment(commentId, userId);
   }
@@ -105,7 +119,6 @@ export class PostController {
   ) {
     return this.postService.getPostLikes(postId, page, limit);
   }
-}
 
   @Delete('/:id')
   @UseGuards(JwtAuthenticationGuard)
