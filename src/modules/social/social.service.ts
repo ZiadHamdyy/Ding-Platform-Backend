@@ -1,17 +1,19 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { Neo4jService } from 'src/configs/neo4j/neo4j.service';
 import { DatabaseService } from 'src/configs/database/database.service';
-import { UserNode, RecommendedUser } from 'src/common/interfaces/user.interface';
+import { UserNode } from 'src/common/interfaces/user.interface';
 import { GenericHttpException } from 'src/common/application/exceptions/generic-http-exception';
 import { ERROR_MESSAGES } from 'src/common/constants/error-messages.constant';
 import neo4j from 'neo4j-driver';
 import { Profile, User } from '@prisma/client';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class SocialService {
   constructor(
     private readonly neo4jservice: Neo4jService,
     private readonly prisma: DatabaseService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -70,12 +72,32 @@ export class SocialService {
     }
   }
 
-  async createUserNode(userId: string): Promise<void> {
+  async createUserNode(
+    userId: string,
+    data?: {
+      name?: string | null;
+      username?: string | null;
+      location?: string | null;
+      coverPhoto?: string | null;
+    },
+  ): Promise<void> {
     const session = this.neo4jservice.getSession();
     try {
       await session.run(
-        `MERGE (u:User {userId: $userId})`,
-        { userId },
+        `MERGE (u:User {userId: $userId})
+             SET u.id = $userId,
+                 u.name = $name,
+                 u.username = $username,
+                 u.location = $location,
+                 u.coverPhoto = $coverPhoto,
+                 u.updatedAt = datetime()`,
+        {
+          userId,
+          name: data?.name ?? null,
+          username: data?.username ?? null,
+          location: data?.location ?? null,
+          coverPhoto: data?.coverPhoto ?? null,
+        },
       );
     } finally {
       await session.close();
@@ -94,7 +116,10 @@ export class SocialService {
     }
   }
 
-  async toggleSendFriendRequest(fromUserId: string, toUserId: string): Promise<void> {
+  async toggleSendFriendRequest(
+    fromUserId: string,
+    toUserId: string,
+  ): Promise<void> {
     // Validate: Cannot send friend request to yourself
     if (fromUserId === toUserId) {
       throw new GenericHttpException(
@@ -138,7 +163,10 @@ export class SocialService {
       }
 
       // Check if friend request already exists - if so, delete it (toggle off)
-      const requestExists = await this.friendRequestExists(fromUserId, toUserId);
+      const requestExists = await this.friendRequestExists(
+        fromUserId,
+        toUserId,
+      );
       if (requestExists) {
         // Delete the existing friend request
         await session.run(
@@ -154,6 +182,11 @@ export class SocialService {
                MERGE (from)-[r:FRIEND_REQUEST]->(to)
                SET r.createdAt = datetime()`,
           { fromUserId, toUserId },
+        );
+        // Send notification
+        await this.notificationService.notifyFriendRequest(
+          fromUserId,
+          toUserId,
         );
       }
     } catch (error) {
@@ -196,7 +229,10 @@ export class SocialService {
       }
 
       // Check if friend request exists
-      const requestExists = await this.friendRequestExists(fromUserId, toUserId);
+      const requestExists = await this.friendRequestExists(
+        fromUserId,
+        toUserId,
+      );
       if (!requestExists) {
         throw new GenericHttpException(
           ERROR_MESSAGES.FRIEND_REQUEST_NOT_FOUND,
@@ -230,6 +266,11 @@ export class SocialService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     } finally {
+      // notify the user that their friend request was accepted
+      await this.notificationService.notifyFriendRequestAccepted(
+        toUserId,
+        fromUserId,
+      );
       await session.close();
     }
   }
@@ -304,17 +345,32 @@ export class SocialService {
     try {
       // Check if user exists in Neo4j
       let userExists = await this.userExists(userId);
-      
+
       // If user doesn't exist in Neo4j, try to create it from PostgreSQL
       if (!userExists) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { id: true },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            Profile: {
+              select: {
+                location: true,
+                coverPhoto: true,
+              },
+            },
+          },
         });
 
         if (user) {
           // Auto-create the node in Neo4j
-          await this.createUserNode(user.id);
+          await this.createUserNode(user.id, {
+            name: user.name,
+            username: user.email,
+            location: user.Profile?.location ?? null,
+            coverPhoto: user.Profile?.coverPhoto ?? null,
+          });
           userExists = true;
         } else {
           throw new GenericHttpException(
@@ -424,17 +480,32 @@ export class SocialService {
     try {
       // Check if user exists in Neo4j
       let userExists = await this.userExists(userId);
-      
+
       // If user doesn't exist in Neo4j, try to create it from PostgreSQL
       if (!userExists) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { id: true },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            Profile: {
+              select: {
+                location: true,
+                coverPhoto: true,
+              },
+            },
+          },
         });
 
         if (user) {
           // Auto-create the node in Neo4j
-          await this.createUserNode(user.id);
+          await this.createUserNode(user.id, {
+            name: user.name,
+            username: user.email,
+            location: user.Profile?.location ?? null,
+            coverPhoto: user.Profile?.coverPhoto ?? null,
+          });
           userExists = true;
         } else {
           throw new GenericHttpException(
@@ -540,7 +611,6 @@ export class SocialService {
     }
   }
 
-
   async followUser(followerId: string, followeeId: string): Promise<void> {
     // Validate: Cannot follow yourself
     if (followerId === followeeId) {
@@ -579,6 +649,7 @@ export class SocialService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     } finally {
+      await this.notificationService.notifyNewFollower(followerId, followeeId);
       await session.close();
     }
   }
@@ -633,17 +704,32 @@ export class SocialService {
     try {
       // Check if user exists in Neo4j
       let userExists = await this.userExists(userId);
-      
+
       // If user doesn't exist in Neo4j, try to create it from PostgreSQL
       if (!userExists) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { id: true },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            Profile: {
+              select: {
+                location: true,
+                coverPhoto: true,
+              },
+            },
+          },
         });
 
         if (user) {
           // Auto-create the node in Neo4j
-          await this.createUserNode(user.id);
+          await this.createUserNode(user.id, {
+            name: user.name,
+            username: user.email,
+            location: user.Profile?.location ?? null,
+            coverPhoto: user.Profile?.coverPhoto ?? null,
+          });
           userExists = true;
         } else {
           throw new GenericHttpException(
@@ -752,17 +838,32 @@ export class SocialService {
     try {
       // Check if user exists in Neo4j
       let userExists = await this.userExists(userId);
-      
+
       // If user doesn't exist in Neo4j, try to create it from PostgreSQL
       if (!userExists) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { id: true },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            Profile: {
+              select: {
+                location: true,
+                coverPhoto: true,
+              },
+            },
+          },
         });
 
         if (user) {
           // Auto-create the node in Neo4j
-          await this.createUserNode(user.id);
+          await this.createUserNode(user.id, {
+            name: user.name,
+            username: user.email,
+            location: user.Profile?.location ?? null,
+            coverPhoto: user.Profile?.coverPhoto ?? null,
+          });
           userExists = true;
         } else {
           throw new GenericHttpException(
@@ -907,7 +1008,12 @@ export class SocialService {
     offset = 0,
     limit = 10,
   ): Promise<{
-    data: (Profile & { user: User; score: number; mutualFriends: number; reason: string })[];
+    data: (Profile & {
+      user: User;
+      score: number;
+      mutualFriends: number;
+      reason: string;
+    })[];
     meta: {
       limit: number;
       offset: number;
@@ -920,17 +1026,32 @@ export class SocialService {
     try {
       // Check if user exists in Neo4j
       let userExists = await this.userExists(userId);
-      
+
       // If user doesn't exist in Neo4j, try to create it from PostgreSQL
       if (!userExists) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { id: true },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            Profile: {
+              select: {
+                location: true,
+                coverPhoto: true,
+              },
+            },
+          },
         });
 
         if (user) {
           // Auto-create the node in Neo4j
-          await this.createUserNode(user.id);
+          await this.createUserNode(user.id, {
+            name: user.name,
+            username: user.email,
+            location: user.Profile?.location ?? null,
+            coverPhoto: user.Profile?.coverPhoto ?? null,
+          });
           userExists = true;
         } else {
           throw new GenericHttpException(
@@ -1015,14 +1136,16 @@ export class SocialService {
          LIMIT $limit`,
         { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
-      
-      // Extract userIds and create a map of Neo4j results
-      const recommendationData = new Map<string, { mutualFriends: number; score: number; reason: string }>();
+
+      const recommendationData = new Map<
+        string,
+        { mutualFriends: number; score: number; reason: string }
+      >();
       const recommendedUserIds: string[] = [];
-      
+
       result.records.forEach((r) => {
         const recUserId = r.get('userId');
-        if (!recommendationData.has(recUserId)) {
+        if (recUserId && !recommendationData.has(recUserId)) {
           recommendedUserIds.push(recUserId);
           recommendationData.set(recUserId, {
             mutualFriends: this.toNumber(r.get('mutualFriends')),
@@ -1032,7 +1155,6 @@ export class SocialService {
         }
       });
 
-      // Batch fetch profile details from PostgreSQL with all data
       const profiles = await this.prisma.profile.findMany({
         where: { userId: { in: recommendedUserIds } },
         include: {
@@ -1040,17 +1162,16 @@ export class SocialService {
         },
       });
 
-      // Create a map for quick lookup
       const profileMap = new Map(profiles.map((p) => [p.userId, p]));
 
-      // Map to RecommendedUser format with full profile data, adding location boost to score
       const recommendations = recommendedUserIds
         .map((id) => {
           const profile = profileMap.get(id);
           const neo4jData = recommendationData.get(id);
-          if (!profile || !neo4jData) return null;
+          if (!profile || !neo4jData) {
+            return null;
+          }
 
-          // Calculate location boost (if both users have location and they match)
           const locationBoost =
             userLocation && profile.location && userLocation === profile.location ? 20 : 0;
           const finalScore = neo4jData.score + locationBoost;
@@ -1062,10 +1183,18 @@ export class SocialService {
             reason: neo4jData.reason,
           };
         })
-        .filter((r): r is (Profile & { user: User; score: number; mutualFriends: number; reason: string }) => r !== null)
-        .sort((a, b) => b.score - a.score); // Re-sort by final score including location boost
+        .filter(
+          (
+            r,
+          ): r is Profile & {
+            user: User;
+            score: number;
+            mutualFriends: number;
+            reason: string;
+          } => r !== null,
+        )
+        .sort((a, b) => b.score - a.score);
 
-      // Calculate pagination metadata
       const hasMore = offsetInt + limitInt < total;
       const nextOffset = hasMore ? offsetInt + limitInt : null;
 
@@ -1105,7 +1234,12 @@ export class SocialService {
     offset = 0,
     limit = 10,
   ): Promise<{
-    data: (Profile & { user: User; score: number; mutualFriends: number; reason: string })[];
+    data: (Profile & {
+      user: User;
+      score: number;
+      mutualFriends: number;
+      reason: string;
+    })[];
     meta: {
       limit: number;
       offset: number;
@@ -1118,17 +1252,32 @@ export class SocialService {
     try {
       // Check if user exists in Neo4j
       let userExists = await this.userExists(userId);
-      
+
       // If user doesn't exist in Neo4j, try to create it from PostgreSQL
       if (!userExists) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { id: true },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            Profile: {
+              select: {
+                location: true,
+                coverPhoto: true,
+              },
+            },
+          },
         });
 
         if (user) {
           // Auto-create the node in Neo4j
-          await this.createUserNode(user.id);
+          await this.createUserNode(user.id, {
+            name: user.name,
+            username: user.email,
+            location: user.Profile?.location ?? null,
+            coverPhoto: user.Profile?.coverPhoto ?? null,
+          });
           userExists = true;
         } else {
           throw new GenericHttpException(
@@ -1215,14 +1364,16 @@ export class SocialService {
          LIMIT $limit`,
         { userId, offset: neo4j.int(offsetInt), limit: neo4j.int(limitInt) },
       );
-      
-      // Extract userIds and create a map of Neo4j results
-      const recommendationData = new Map<string, { mutualFriends: number; score: number; reason: string }>();
+
+      const recommendationData = new Map<
+        string,
+        { mutualFriends: number; score: number; reason: string }
+      >();
       const recommendedUserIds: string[] = [];
-      
+
       result.records.forEach((r) => {
         const recUserId = r.get('userId');
-        if (!recommendationData.has(recUserId)) {
+        if (recUserId && !recommendationData.has(recUserId)) {
           recommendedUserIds.push(recUserId);
           recommendationData.set(recUserId, {
             mutualFriends: this.toNumber(r.get('mutualFriends')),
@@ -1232,7 +1383,6 @@ export class SocialService {
         }
       });
 
-      // Batch fetch profile details from PostgreSQL with all data
       const profiles = await this.prisma.profile.findMany({
         where: { userId: { in: recommendedUserIds } },
         include: {
@@ -1240,17 +1390,16 @@ export class SocialService {
         },
       });
 
-      // Create a map for quick lookup
       const profileMap = new Map(profiles.map((p) => [p.userId, p]));
 
-      // Map to RecommendedUser format with full profile data, adding location boost to score
       const recommendations = recommendedUserIds
         .map((id) => {
           const profile = profileMap.get(id);
           const neo4jData = recommendationData.get(id);
-          if (!profile || !neo4jData) return null;
+          if (!profile || !neo4jData) {
+            return null;
+          }
 
-          // Calculate location boost (if both users have location and they match)
           const locationBoost =
             userLocation && profile.location && userLocation === profile.location ? 20 : 0;
           const finalScore = neo4jData.score + locationBoost;
@@ -1262,10 +1411,18 @@ export class SocialService {
             reason: neo4jData.reason,
           };
         })
-        .filter((r): r is (Profile & { user: User; score: number; mutualFriends: number; reason: string }) => r !== null)
-        .sort((a, b) => b.score - a.score); // Re-sort by final score including location boost
+        .filter(
+          (
+            r,
+          ): r is Profile & {
+            user: User;
+            score: number;
+            mutualFriends: number;
+            reason: string;
+          } => r !== null,
+        )
+        .sort((a, b) => b.score - a.score);
 
-      // Calculate pagination metadata
       const hasMore = offsetInt + limitInt < total;
       const nextOffset = hasMore ? offsetInt + limitInt : null;
 
@@ -1413,17 +1570,32 @@ export class SocialService {
     try {
       // Check if user exists in Neo4j
       let userExists = await this.userExists(userId);
-      
+
       // If user doesn't exist in Neo4j, try to create it from PostgreSQL
       if (!userExists) {
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { id: true },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            Profile: {
+              select: {
+                location: true,
+                coverPhoto: true,
+              },
+            },
+          },
         });
 
         if (user) {
           // Auto-create the node in Neo4j
-          await this.createUserNode(user.id);
+          await this.createUserNode(user.id, {
+            name: user.name,
+            username: user.email,
+            location: user.Profile?.location ?? null,
+            coverPhoto: user.Profile?.coverPhoto ?? null,
+          });
           userExists = true;
         } else {
           throw new GenericHttpException(
@@ -1443,7 +1615,7 @@ export class SocialService {
                 count(DISTINCT follower) as followersCount`,
         { userId },
       );
-      
+
       const record = result.records[0];
       return {
         friendsCount: record.get('friendsCount').toNumber(),
@@ -1457,6 +1629,292 @@ export class SocialService {
       console.error('Error in getUserNetworkStats:', error);
       throw new GenericHttpException(
         'Failed to get network stats',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Block a user
+   */
+  async blockUser(blockerId: string, blockedId: string): Promise<void> {
+    if (blockerId === blockedId) {
+      throw new GenericHttpException(
+        'Cannot block yourself',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const session = this.neo4jservice.getSession();
+    try {
+      const blockerExists = await this.userExists(blockerId);
+      const blockedExists = await this.userExists(blockedId);
+
+      if (!blockerExists || !blockedExists) {
+        throw new GenericHttpException(
+          ERROR_MESSAGES.USER_NOT_FOUND_IN_SOCIAL,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      // Remove friendship if exists
+      await session.run(
+        `MATCH (blocker:User {userId: $blockerId})-[r:FRIENDS]-(blocked:User {userId: $blockedId})
+       DELETE r`,
+        { blockerId, blockedId },
+      );
+
+      // Remove follow relationships
+      await session.run(
+        `MATCH (blocker:User {userId: $blockerId})-[r:FOLLOWS]-(blocked:User {userId: $blockedId})
+       DELETE r`,
+        { blockerId, blockedId },
+      );
+
+      // Remove friend requests
+      await session.run(
+        `MATCH (blocker:User {userId: $blockerId})-[r:FRIEND_REQUEST]-(blocked:User {userId: $blockedId})
+       DELETE r`,
+        { blockerId, blockedId },
+      );
+
+      // Create block relationship
+      await session.run(
+        `MATCH (blocker:User {userId: $blockerId})
+       MATCH (blocked:User {userId: $blockedId})
+       MERGE (blocker)-[r:BLOCKS]->(blocked)
+       SET r.createdAt = datetime()`,
+        { blockerId, blockedId },
+      );
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      throw new GenericHttpException(
+        'Failed to block user',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Unblock a user
+   */
+  async unblockUser(blockerId: string, blockedId: string): Promise<void> {
+    const session = this.neo4jservice.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (blocker:User {userId: $blockerId})-[r:BLOCKS]->(blocked:User {userId: $blockedId})
+       DELETE r
+       RETURN count(r) as deleted`,
+        { blockerId, blockedId },
+      );
+
+      if (result.records[0].get('deleted').toNumber() === 0) {
+        throw new GenericHttpException(
+          'User is not blocked',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      throw new GenericHttpException(
+        'Failed to unblock user',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Check if user is blocked
+   */
+  async isBlocked(userId: string, targetUserId: string): Promise<boolean> {
+    const session = this.neo4jservice.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (u1:User {userId: $userId})-[:BLOCKS]->(u2:User {userId: $targetUserId})
+       RETURN count(*) > 0 as isBlocked`,
+        { userId, targetUserId },
+      );
+      return result.records[0].get('isBlocked');
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Get blocked users
+   */
+  async getBlockedUsers(userId: string, limit = 100): Promise<UserNode[]> {
+    const session = this.neo4jservice.getSession();
+    try {
+      const userExists = await this.userExists(userId);
+      if (!userExists) {
+        throw new GenericHttpException(
+          ERROR_MESSAGES.USER_NOT_FOUND_IN_SOCIAL,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      const limitInt = Math.floor(Number(limit)) || 100;
+      const result = await session.run(
+        `MATCH (u:User {userId: $userId})-[:BLOCKS]->(blocked:User)
+       RETURN blocked.userId as userId, blocked.username as username, blocked.name as name
+       LIMIT $limit`,
+        { userId, limit: neo4j.int(limitInt) },
+      );
+
+      return result.records.map((r) => ({
+        userId: r.get('userId'),
+        username: r.get('username'),
+        name: r.get('name'),
+      }));
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      throw new GenericHttpException(
+        'Failed to get blocked users',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Mute a user
+   */
+  async muteUser(muterId: string, mutedId: string): Promise<void> {
+    if (muterId === mutedId) {
+      throw new GenericHttpException(
+        'Cannot mute yourself',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const session = this.neo4jservice.getSession();
+    try {
+      const muterExists = await this.userExists(muterId);
+      const mutedExists = await this.userExists(mutedId);
+
+      if (!muterExists || !mutedExists) {
+        throw new GenericHttpException(
+          ERROR_MESSAGES.USER_NOT_FOUND_IN_SOCIAL,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      await session.run(
+        `MATCH (muter:User {userId: $muterId})
+       MATCH (muted:User {userId: $mutedId})
+       MERGE (muter)-[r:MUTES]->(muted)
+       SET r.createdAt = datetime()`,
+        { muterId, mutedId },
+      );
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      throw new GenericHttpException(
+        'Failed to mute user',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Unmute a user
+   */
+  async unmuteUser(muterId: string, mutedId: string): Promise<void> {
+    const session = this.neo4jservice.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (muter:User {userId: $muterId})-[r:MUTES]->(muted:User {userId: $mutedId})
+       DELETE r
+       RETURN count(r) as deleted`,
+        { muterId, mutedId },
+      );
+
+      if (result.records[0].get('deleted').toNumber() === 0) {
+        throw new GenericHttpException(
+          'User is not muted',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      throw new GenericHttpException(
+        'Failed to unmute user',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Check if user is muted
+   */
+  async isMuted(userId: string, targetUserId: string): Promise<boolean> {
+    const session = this.neo4jservice.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (u1:User {userId: $userId})-[:MUTES]->(u2:User {userId: $targetUserId})
+       RETURN count(*) > 0 as isMuted`,
+        { userId, targetUserId },
+      );
+      return result.records[0].get('isMuted');
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Get muted users
+   */
+  async getMutedUsers(userId: string, limit = 100): Promise<UserNode[]> {
+    const session = this.neo4jservice.getSession();
+    try {
+      const userExists = await this.userExists(userId);
+      if (!userExists) {
+        throw new GenericHttpException(
+          ERROR_MESSAGES.USER_NOT_FOUND_IN_SOCIAL,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      const limitInt = Math.floor(Number(limit)) || 100;
+      const result = await session.run(
+        `MATCH (u:User {userId: $userId})-[:MUTES]->(muted:User)
+       RETURN muted.userId as userId, muted.username as username, muted.name as name
+       LIMIT $limit`,
+        { userId, limit: neo4j.int(limitInt) },
+      );
+
+      return result.records.map((r) => ({
+        userId: r.get('userId'),
+        username: r.get('username'),
+        name: r.get('name'),
+      }));
+    } catch (error) {
+      if (error instanceof GenericHttpException) {
+        throw error;
+      }
+      throw new GenericHttpException(
+        'Failed to get muted users',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     } finally {
