@@ -1,20 +1,45 @@
 import { Expose, Type } from 'class-transformer';
-import { UserNode, RecommendedUser } from '../../../../common/interfaces/user.interface';
 
 export class MessageResponse {
   @Expose()
   message: string;
 }
 
-export class FriendResponse implements UserNode {
+class UserBasicInfo {
+  @Expose()
+  name: string | null;
+
+  @Expose()
+  image: string | null;
+}
+
+export class FriendResponse {
   @Expose()
   userId: string;
 
   @Expose()
-  username: string;
+  bio: string | null;
 
   @Expose()
-  name?: string;
+  @Type(() => UserBasicInfo)
+  user: UserBasicInfo;
+}
+
+class FriendsListMeta {
+  @Expose()
+  limit: number;
+
+  @Expose()
+  offset: number;
+
+  @Expose()
+  total: number;
+
+  @Expose()
+  hasMore: boolean;
+
+  @Expose()
+  nextOffset: number | null;
 }
 
 export class FriendsListResponse {
@@ -23,18 +48,20 @@ export class FriendsListResponse {
   data: FriendResponse[];
 
   @Expose()
-  count: number;
+  @Type(() => FriendsListMeta)
+  meta: FriendsListMeta;
 }
 
-export class RecommendedUserResponse implements RecommendedUser {
+export class RecommendedUserResponse {
   @Expose()
   userId: string;
 
   @Expose()
-  username: string;
+  bio: string | null;
 
   @Expose()
-  name?: string;
+  @Type(() => UserBasicInfo)
+  user: UserBasicInfo;
 
   @Expose()
   score: number;
@@ -44,9 +71,23 @@ export class RecommendedUserResponse implements RecommendedUser {
 
   @Expose()
   reason: string;
+}
+
+class RecommendationsListMeta {
+  @Expose()
+  limit: number;
 
   @Expose()
-  location?: string;
+  offset: number;
+
+  @Expose()
+  total: number;
+
+  @Expose()
+  hasMore: boolean;
+
+  @Expose()
+  nextOffset: number | null;
 }
 
 export class RecommendationsListResponse {
@@ -55,6 +96,7 @@ export class RecommendationsListResponse {
   data: RecommendedUserResponse[];
 
   @Expose()
-  count: number;
+  @Type(() => RecommendationsListMeta)
+  meta: RecommendationsListMeta;
 }
 
