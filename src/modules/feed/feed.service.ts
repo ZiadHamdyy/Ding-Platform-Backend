@@ -26,7 +26,7 @@ export class FeedService {
          RETURN followingIds`,
         { userId },
       );
-      const followingIds = result.records[0]?.get('followingIds')?.values?.map((v: any) => v) || [];
+      const followingIds = result.records[0]?.get('followingIds') || [];
       const authorIds = [userId, ...followingIds];
       const posts = await this.prisma.post.findMany({
         where: {
