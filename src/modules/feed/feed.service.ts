@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../configs/database/database.service';
 import { Neo4jService } from '../../configs/neo4j/neo4j.service';
 import { FeedItemDto } from './dtos/response/feed.response';
-import { PaginationDto } from '../../common/dtos/pagination.dto'; // assume exists or create simple interface
+import { PaginationDto, PaginatedResponse } from '../../common/dtos/pagination.dto';
 
 @Injectable()
 export class FeedService {
@@ -15,7 +15,7 @@ export class FeedService {
    * Retrieve feed posts for a user with pagination and privacy filtering.
    * This is a simplified implementation that fetches public posts and posts from users the requester follows.
    */
-  async getFeed(userId: string, page = 1, limit = 20): Promise<{ data: FeedItemDto[]; meta: PaginationDto }> {
+  async getFeed(userId: string, page = 1, limit = 20): Promise<PaginatedResponse<FeedItemDto>> {
     const skip = (page - 1) * limit;
     // Determine user ids to include: public posts + posts from followed users + friends (if needed)
     const session = this.neo4jService.getSession();
@@ -44,12 +44,21 @@ export class FeedService {
         id: p.id,
         content: p.content,
         authorId: p.authorId,
-        authorName: p.author?.name ?? null,
+        authorName: p.author?.name ?? undefined,
         createdAt: p.createdAt,
         mediaUrls: p.mediaUrls,
         privacy: p.privacy,
       }));
-      return { data, meta: { page, limit, total: data.length } };
+      const total = await this.prisma.post.count({
+        where: {
+          OR: [
+            { privacy: 'PUBLIC' },
+            { authorId: { in: authorIds } },
+          ],
+        },
+      });
+      const totalPages = Math.ceil(total / limit);
+      return { data, total, page, limit, totalPages };
     } finally {
       await session.close();
     }

@@ -244,8 +244,18 @@ export class CloudinaryService {
       height: number;
     }>;
   }> {
-    const imageUrls = [];
-    const videoUrls = [];
+    const imageUrls: Array<{
+      url: string;
+      publicId: string;
+      width: number;
+      height: number;
+    }> = [];
+    const videoUrls: Array<{
+      url: string;
+      publicId: string;
+      width: number;
+      height: number;
+    }> = [];
 
     // Upload images
     if (files.images && files.images.length > 0) {

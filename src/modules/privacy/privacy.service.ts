@@ -27,7 +27,12 @@ export class PrivacyService {
     });
     const updated = await this.prisma.profilePrivacy.upsert({
       where: { profileId: userId },
-      create: { profileId: userId, ...data },
+      create: { 
+        profileId: userId,
+        ...Object.fromEntries(
+          Object.entries(dto).filter(([_, v]) => v !== undefined)
+        )
+      } as Prisma.ProfilePrivacyUncheckedCreateInput,
       update: data,
     });
     return updated as any;

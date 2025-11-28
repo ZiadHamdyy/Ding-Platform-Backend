@@ -26,7 +26,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
       - NEO4J_URI=${NEO4J_URI}
       - NEO4J_AUTH=${NEO4J_AUTH}
     volumes:
@@ -44,23 +44,23 @@ services:
     # Generate Prisma client and start in development mode
     command: sh -c "pnpm prisma generate && pnpm run start:dev"
 
-  frontend:
-    container_name: ding-frontend-dev
-    build:
-      context: ../Ding-Platform-Frontend
-      dockerfile: Dockerfile.dev
-    ports:
-      - 5173:5173
-    volumes:
-      - ../Ding-Platform-Frontend:/app
-      - /app/node_modules
+#   frontend:
+#     container_name: ding-frontend-dev
+#     build:
+#       context: ../Ding-Platform-Frontend
+#       dockerfile: Dockerfile.dev
+#     ports:
+#       - 5173:5173
+#     volumes:
+#       - ../Ding-Platform-Frontend:/app
+#       - /app/node_modules
   neo4j:
     image: neo4j:latest
     container_name: ding-neo4j-dev
     restart: always
     ports:
-      - '7474:7474'
-      - '7687:7687'
+      - '7475:7474'
+      - '7688:7687'
     environment:
       - NEO4J_AUTH=${NEO4J_AUTH}
       - NEO4J_PLUGINS=["apoc"]
@@ -82,7 +82,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
     volumes:
       - .:/app
       - /app/node_modules
