@@ -148,7 +148,13 @@ export class ProfileService {
 
       // Create corresponding node in Neo4j
       try {
-        await this.socialService.createUserNode(profile.user.id);
+        await this.socialService.createUserNode(
+          profile.user.id,
+          profile.user.name || undefined,
+          profile.user.email,
+          profile.location || undefined,
+          profile.coverPhoto || undefined,
+        );
       } catch (error) {
         // Log error but don't fail profile creation if Neo4j fails
         console.error('Failed to create Neo4j node for user:', error);

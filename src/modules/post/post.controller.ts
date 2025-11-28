@@ -12,11 +12,11 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { PostService } from './post.service';
-import { UploadPostFiles } from '../../common/decorators/upload-post-files.decorator';
+import { UploadPostFiles } from 'src/common/decorators/upload-post-files.decorator';
 import { CreatePostDto } from './dtos/create_post.dto';
 import { UpdatePostDto } from './dtos/update_post.dto';
-import { JwtAuthenticationGuard } from '../../common/guards/strategy.guards/jwt.guard';
-import { currentUser } from '../../common/decorators/currentUser.decorator';
+import { JwtAuthenticationGuard } from 'src/common/guards/strategy.guards/jwt.guard';
+import { currentUser } from 'src/common/decorators/currentUser.decorator';
 import { CreateCommentDto } from './dtos/create_comment.dto';
 
 @Controller('posts')
@@ -26,18 +26,6 @@ export class PostController {
   @Get('/')
   async getAllPosts(@currentUser('id') userId?: string) {
     return this.postService.getAllPosts(userId);
-  }
-
-  @Get('/count')
-  @UseGuards(JwtAuthenticationGuard)
-  async getMyPostsCount(@currentUser('id') userId: string) {
-    return this.postService.getPostsCount(userId);
-  }
-
-  @Get('/count/:profileId')
-  @UseGuards(JwtAuthenticationGuard)
-  async getProfilePostsCount(@Param('profileId') profileId: string) {
-    return this.postService.getPostsCount(profileId);
   }
 
   @Get('/:id')
@@ -119,6 +107,7 @@ export class PostController {
   ) {
     return this.postService.getPostLikes(postId, page, limit);
   }
+
 
   @Delete('/:id')
   @UseGuards(JwtAuthenticationGuard)
