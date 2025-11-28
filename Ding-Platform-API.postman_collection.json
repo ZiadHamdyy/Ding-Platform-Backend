@@ -322,20 +322,38 @@
               ]
             },
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"content\": \"Hello World! This is my first post.\",\n  \"privacy\": \"PUBLIC\"\n}"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "content",
+                  "value": "Hello World! This is my first post with media.",
+                  "type": "text"
+                },
+                {
+                  "key": "privacy",
+                  "value": "PUBLIC",
+                  "type": "text"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": [],
+                  "disabled": true
+                },
+                {
+                  "key": "videos",
+                  "type": "file",
+                  "src": [],
+                  "disabled": true
+                }
+              ]
             },
             "url": {
-              "raw": "{{baseUrl}}/posts",
+              "raw": "{{baseUrl}}/posts/create",
               "host": ["{{baseUrl}}"],
-              "path": ["posts"]
+              "path": ["posts", "create"]
             }
           }
         },
@@ -585,9 +603,9 @@
             },
             "method": "DELETE",
             "url": {
-              "raw": "{{baseUrl}}/comments/{{commentId}}",
+              "raw": "{{baseUrl}}/posts/comments/{{commentId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["comments", "{{commentId}}"]
+              "path": ["posts", "comments", "{{commentId}}"]
             }
           }
         }

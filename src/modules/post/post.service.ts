@@ -5,7 +5,7 @@ import { CloudinaryService } from 'src/common/services/cloudinary/cloudinary.ser
 import { GenericHttpException } from 'src/common/application/exceptions/generic-http-exception';
 import { ERROR_MESSAGES } from 'src/common/constants/error-messages.constant';
 import { POST_CONSTANTS } from 'src/common/constants/post.constants';
-import { CreatePostDto, PostPrivacy } from './dtos/create_post.dto';
+import { CreatePostDto } from './dtos/create_post.dto';
 import { UpdatePostDto } from './dtos/update_post.dto';
 import { NotificationService } from '../notification/notification.service';
 import { CreateCommentDto } from './dtos/create_comment.dto';
@@ -108,7 +108,7 @@ export class PostService {
         data: {
           content: data.content,
           authorId: data.authorId,
-          privacy: data.privacy as PostPrivacy,
+          privacy: data.privacy,
         },
       });
 
@@ -199,7 +199,7 @@ export class PostService {
         newPost.id,
         data.content,
         mediaUrls,
-        data.privacy as PostPrivacy,
+        data.privacy ?? 'PUBLIC',
         'CREATED',
       );
 
@@ -258,7 +258,7 @@ export class PostService {
         postId,
         updatedPost.content,
         updatedPost.mediaUrls,
-        updatedPost.privacy as PostPrivacy,
+        updatedPost.privacy,
         'UPDATED',
       );
 
@@ -301,7 +301,7 @@ export class PostService {
         postId,
         post.content,
         post.mediaUrls,
-        post.privacy as PostPrivacy,
+        post.privacy,
         'DELETED',
       );
 
@@ -371,7 +371,7 @@ export class PostService {
     postId: string,
     content: string,
     mediaUrls: string[],
-    privacy: PostPrivacy,
+    privacy: any,
     changeType: 'CREATED' | 'UPDATED' | 'DELETED' | 'RESTORED',
   ): Promise<void> {
     await this.prisma.postHistory.create({
@@ -587,16 +587,5 @@ export class PostService {
         totalPages: Math.ceil(total / limit),
       },
     };
-  }
-
-  async getPostsCount(profileId: string) {
-    const postsCount = await this.prisma.post.count({
-      where: {
-        authorId: profileId,
-        isDeleted: false,
-      },
-    });
-
-    return { postsCount };
   }
 }
