@@ -12,7 +12,7 @@ import {
 import { NotificationService } from './notification.service';
 import { JwtAuthenticationGuard } from '../../common/guards/strategy.guards/jwt.guard';
 import { currentUser } from '../../common/decorators/currentUser.decorator';
-import { currentUserType } from '../../common/types/current-user.type';
+import type { currentUserType } from '../../common/types/current-user.type';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('Notifications')
