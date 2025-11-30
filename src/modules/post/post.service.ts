@@ -1,10 +1,10 @@
 import { Injectable, HttpStatus, ForbiddenException } from '@nestjs/common';
-import { DatabaseService } from 'src/configs/database/database.service';
-import { HelperService } from 'src/common/utils/helper/helper.service';
-import { CloudinaryService } from 'src/common/services/cloudinary/cloudinary.service';
-import { GenericHttpException } from 'src/common/application/exceptions/generic-http-exception';
-import { ERROR_MESSAGES } from 'src/common/constants/error-messages.constant';
-import { POST_CONSTANTS } from 'src/common/constants/post.constants';
+import { DatabaseService } from '../../configs/database/database.service';
+import { HelperService } from '../../common/utils/helper/helper.service';
+import { CloudinaryService } from '../../common/services/cloudinary/cloudinary.service';
+import { GenericHttpException } from '../../common/application/exceptions/generic-http-exception';
+import { ERROR_MESSAGES } from '../../common/constants/error-messages.constant';
+import { POST_CONSTANTS } from '../../common/constants/post.constants';
 import { CreatePostDto } from './dtos/create_post.dto';
 import { UpdatePostDto } from './dtos/update_post.dto';
 import { NotificationService } from '../notification/notification.service';

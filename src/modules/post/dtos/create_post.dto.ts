@@ -7,7 +7,7 @@ import {
   IsArray,
   IsUUID,
 } from 'class-validator';
-import { POST_CONSTANTS } from 'src/common/constants/post.constants';
+import { POST_CONSTANTS } from '../../../common/constants/post.constants';
 
 export enum PostPrivacy {
   PUBLIC = 'PUBLIC',
