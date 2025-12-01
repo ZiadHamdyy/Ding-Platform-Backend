@@ -9,6 +9,7 @@
     "postinstall": "prisma generate",
     "prebuild": "npx rimraf dist",
     "build": "prisma generate && nest build",
+    "postbuild": "ls -la && ls -la dist 2>/dev/null || echo 'No dist folder!'",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
