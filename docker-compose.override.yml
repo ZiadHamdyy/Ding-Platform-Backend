@@ -1,0 +1,74 @@
+# Development Environment Override
+# This file is automatically loaded when running: docker-compose up
+# It extends docker-compose.yml with development-specific configurations
+
+services:
+  postgres:
+    restart: unless-stopped
+
+  neo4j:
+    restart: unless-stopped
+    environment:
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=2G
+
+  redis:
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/dist
+      - ./uploads:/app/uploads
+    stdin_open: true
+    tty: true
+    command: sh -c "pnpm prisma generate && pnpm run start:dev"
+
+  # Prisma Studio - Database Management UI (Development Only)
+  prisma-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: ding-prisma-studio
+    restart: unless-stopped
+    ports:
+      - '5555:5555'
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ding_db}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ding-network
+    command: sh -c "pnpm prisma generate && npx prisma studio --hostname 0.0.0.0 --port 5555"
+
+  # Uncomment to run frontend with backend in development
+  # frontend:
+  #   container_name: ding-frontend
+  #   build:
+  #     context: ../Ding-Platform-Frontend
+  #     dockerfile: Dockerfile.dev
+  #   restart: unless-stopped
+  #   ports:
+  #     - '5173:5173'
+  #   environment:
+  #     - VITE_API_URL=http://localhost:3000
+  #   volumes:
+  #     - ../Ding-Platform-Frontend:/app
+  #     - /app/node_modules
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - ding-network

@@ -56,3 +56,16 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 /generated/prisma
+
+# Docker
+nginx/ssl/*.pem
+nginx/ssl/*.crt
+nginx/ssl/*.key
+nginx/logs/
+volumes/
+docker-compose.local.yml
+
+# Uploads
+/uploads/*
+!/uploads/.gitkeep
+
