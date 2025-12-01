@@ -1,0 +1,101 @@
+# Base Docker Compose Configuration
+# This file contains common service definitions shared across all environments
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.override.yml up (dev)
+#          docker-compose -f docker-compose.yml -f docker-compose.prod.yml up (prod)
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ding-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-ding_db}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - ding-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Neo4j Graph Database
+  neo4j:
+    image: neo4j:5.15-community
+    container_name: ding-neo4j
+    ports:
+      - '7474:7474'  # HTTP
+      - '7687:7687'  # Bolt
+    environment:
+      - NEO4J_AUTH=${NEO4J_AUTH:-neo4j/password}
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    networks:
+      - ding-network
+    healthcheck:
+      test: ['CMD-SHELL', 'cypher-shell -u neo4j -p ${NEO4J_PASSWORD:-password} "RETURN 1"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: ding-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - ding-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  # NestJS Backend Application
+  backend:
+    container_name: ding-backend
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ding_db}
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_AUTH=${NEO4J_AUTH:-neo4j/password}
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - '${PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ding-network
+
+volumes:
+  pgdata:
+    driver: local
+  neo4j_data:
+    driver: local
+  neo4j_logs:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  ding-network:
+    driver: bridge

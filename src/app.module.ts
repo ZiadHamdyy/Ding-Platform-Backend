@@ -20,6 +20,7 @@ import { SocialModule } from './modules/social/social.module';
 import { PostModule } from './modules/post/post.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -40,7 +41,7 @@ import { PrivacyModule } from './modules/privacy/privacy.module';
     FeedModule,
     PrivacyModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [
     AppService,
     {
