@@ -1,0 +1,99 @@
+# Render Blueprint - Infrastructure as Code
+# This file defines all services needed for the Ding Platform Backend
+# Configured for FREE TIER (512 MB RAM, 0.1 CPU per service)
+
+services:
+  # Main Backend Service
+  - type: web
+    name: ding-backend
+    runtime: node
+    region: oregon
+    plan: free  # FREE TIER: Spins down after 15 min inactivity
+    buildCommand: pnpm install && pnpm prisma generate && pnpm run build
+    startCommand: pnpm run start:prod
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ding-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: ding-redis
+          property: connectionString
+      - key: NEO4J_URI
+        sync: false  # Set manually in Render dashboard
+      - key: NEO4J_AUTH
+        sync: false  # Set manually in Render dashboard
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://yourdomain.com  # Update with actual frontend URL
+      - key: FRONTEND_URLS
+        value: https://yourdomain.com  # Update with actual frontend URLs
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: SMTP_FROM_NAME
+        value: Ding Platform
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CALLBACK_URL
+        sync: false  # e.g., https://your-app.onrender.com/api/v1/auth/google/callback
+      - key: BCRYPT_ROUNDS
+        value: "10"
+      - key: ACCESS_TOKEN_EXPIRES_IN
+        value: 15m
+      - key: REFRESH_TOKEN_EXPIRES_IN
+        value: 7d
+      - key: OTP_EXPIRES_IN_MINUTES
+        value: "10"
+      - key: API_PREFIX
+        value: api
+      - key: API_DOCS_PATH
+        value: api/docs
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: "100"
+      - key: SERVER_NAME
+        value: Ding-Platform-Backend
+
+databases:
+  # PostgreSQL Database
+  - name: ding-postgres
+    databaseName: ding_db
+    user: ding_user
+    plan: free  # FREE TIER: 1 GB storage, expires after 90 days
+    region: oregon
+    ipAllowList: []  # Empty = allow from anywhere
+
+  # Redis Cache
+  - name: ding-redis
+    plan: free  # FREE TIER: 25 MB storage
+    region: oregon
+    ipAllowList: []

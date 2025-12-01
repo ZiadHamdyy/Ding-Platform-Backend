@@ -1,0 +1,15 @@
+# .gitignore additions for Docker setup
+
+# Nginx SSL certificates (security)
+nginx/ssl/*.pem
+nginx/ssl/*.crt
+nginx/ssl/*.key
+
+# Nginx logs
+nginx/logs/
+
+# Docker volumes (if mounted locally)
+volumes/
+
+# Environment-specific overrides
+docker-compose.local.yml
