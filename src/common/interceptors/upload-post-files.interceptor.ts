@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Observable } from 'rxjs/internal/Observable';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { uploadOptions } from 'src/configs/multer/upload-options';
+import { uploadOptions } from '../../configs/multer/upload-options';
 
 @Injectable()
 export class uploadPostFilesInterceptor implements NestInterceptor {

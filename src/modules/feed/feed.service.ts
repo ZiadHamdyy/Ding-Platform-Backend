@@ -26,7 +26,19 @@ export class FeedService {
          RETURN followingIds`,
         { userId },
       );
-      const followingIds = result.records[0]?.get('followingIds') || [];
+
+      const rawFollowing = result.records[0]?.get('followingIds');
+      const followingIds =
+        rawFollowing && typeof (rawFollowing as any).toArray === 'function'
+          ? // Neo4j List
+            (rawFollowing as any).toArray()
+          : Array.isArray(rawFollowing)
+            ? // Already a plain JS array
+              rawFollowing
+            : rawFollowing != null
+              ? // Single value
+                [rawFollowing]
+              : [];
       const authorIds = [userId, ...followingIds];
       const posts = await this.prisma.post.findMany({
         where: {

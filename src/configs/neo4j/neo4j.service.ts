@@ -4,7 +4,7 @@ import { get } from 'env-var';
 
 @Injectable()
 export class Neo4jService implements OnModuleInit, OnModuleDestroy {
-  private driver: ReturnType<typeof neo4j.driver>;
+  private driver: Driver;
 
   async onModuleInit() {
     const uri = get('NEO4J_URI').default('bolt://localhost:7687').asString();
@@ -58,7 +58,7 @@ export class Neo4jService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  getDriver(): ReturnType<typeof neo4j.driver> {
+  getDriver(): Driver {
     return this.driver;
   }
 

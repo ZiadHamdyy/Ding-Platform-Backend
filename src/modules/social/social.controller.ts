@@ -10,10 +10,10 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { SocialService } from './social.service';
-import { currentUser } from 'src/common/decorators/currentUser.decorator';
-import { currentUserType } from 'src/common/types/current-user.type';
-import { JwtAuthenticationGuard } from 'src/common/guards/strategy.guards/jwt.guard';
-import { Serialize } from 'src/common/interceptors/serialize.interceptor';
+import { currentUser } from '../../common/decorators/currentUser.decorator';
+import type { currentUserType } from '../../common/types/current-user.type';
+import { JwtAuthenticationGuard } from '../../common/guards/strategy.guards/jwt.guard';
+import { Serialize } from '../../common/interceptors/serialize.interceptor';
 import {
   MessageResponse,
   FriendResponse,

@@ -1,0 +1,19 @@
+# .renderignore - Files to ignore during Render deploys
+# Unlike .gitignore, we DO want dist/ folder for deployment
+
+.git/
+.github/
+*.md
+!README.md
+node_modules/
+.vscode/
+.idea/
+*.log
+test/
+coverage/
+.env.example
+.env.dev
+docker-compose*.yml
+Dockerfile*
+nginx/
+scripts/dev.sh
