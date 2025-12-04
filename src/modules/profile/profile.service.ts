@@ -4,7 +4,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 // src/modules/profile/profile.service.ts
-import { Injectable, HttpStatus, ForbiddenException } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
 import { DatabaseService } from '../../configs/database/database.service';
 import { CloudinaryService } from '../../common/services/cloudinary/cloudinary.service';
 import { GenericHttpException } from '../../common/application/exceptions/generic-http-exception';
@@ -436,7 +436,7 @@ export class ProfileService {
 
   /**
    * Check if requester has permission to view profile
-   * Throws ForbiddenException if access denied
+   * Throws GenericHttpException if access denied
    */
 
   /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
@@ -450,13 +450,19 @@ export class ProfileService {
 
     // Deny access for PRIVATE/ONLY_ME profiles
     if (visibility === 'PRIVATE' || visibility === 'ONLY_ME') {
-      throw new ForbiddenException(PROFILE_ERROR_MESSAGES.UNAUTHORIZED_ACCESS);
+      throw new GenericHttpException(
+        PROFILE_ERROR_MESSAGES.UNAUTHORIZED_ACCESS,
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     // Check FRIENDS visibility
     if (visibility === 'FRIENDS') {
       // TODO: Implement friend checking when friend system is ready
-      throw new ForbiddenException(PROFILE_ERROR_MESSAGES.UNAUTHORIZED_ACCESS);
+      throw new GenericHttpException(
+        PROFILE_ERROR_MESSAGES.UNAUTHORIZED_ACCESS,
+        HttpStatus.FORBIDDEN,
+      );
     }
   }
 

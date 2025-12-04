@@ -23,6 +23,8 @@ import { FeedModule } from './modules/feed/feed.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { HealthController } from './health.controller';
 import { LikeModule } from './modules/like/like.module';
+import { GraphSyncModule } from './modules/graph/graph-sync.module';
+import { CommentModule } from './modules/comment/comment.module';
 
 const redisUrl = process.env.REDIS_URL;
 let bullRedisOptions: { host: string; port: number } = {
@@ -64,6 +66,8 @@ if (redisUrl) {
     FeedModule,
     PrivacyModule,
     LikeModule,
+    GraphSyncModule,
+    CommentModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
