@@ -20,7 +20,8 @@ export class PostService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  async getAllPosts(userId?: string) {
+  async getAllPosts(userId?: string, page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
     const posts = await this.prisma.post.findMany({
       where: {
         isDeleted: false,
@@ -44,6 +45,8 @@ export class PostService {
       orderBy: {
         createdAt: 'desc',
       },
+      skip,
+      take: limit,
     });
 
     if (!posts || posts.length === 0) {

@@ -38,6 +38,7 @@ export class Neo4jService implements OnModuleInit, OnModuleDestroy {
       try {
         await this.driver.verifyConnectivity();
         console.log('Neo4j connected successfully');
+        console.log("Neo4j URL: ", uri);
         return;
       } catch (error) {
         if (attempt === maxRetries) {

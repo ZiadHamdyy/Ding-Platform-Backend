@@ -24,20 +24,17 @@ export class PostController {
   constructor(private readonly postService: PostService) {}
 
   @Get('/')
-  async getAllPosts(@currentUser('id') userId?: string) {
-    return this.postService.getAllPosts(userId);
+  async getAllPosts(@Query('page', ParseIntPipe) page = 1, @Query('limit', ParseIntPipe) limit = 20) {
+    return this.postService.getAllPosts(undefined, page, limit);
   }
 
   @Get('/count')
   @UseGuards(JwtAuthenticationGuard)
-  async getMyPostsCount(@currentUser('id') userId: string) {
-    return this.postService.getPostsCount(userId);
-  }
-
-  @Get('/count/:profileId')
-  @UseGuards(JwtAuthenticationGuard)
-  async getProfilePostsCount(@Param('profileId') profileId: string) {
-    return this.postService.getPostsCount(profileId);
+  async getPostsCount(
+    @currentUser('id') userId: string,
+    @Query('profileId') profileId?: string,
+  ) {
+    return this.postService.getPostsCount(profileId || userId);
   }
 
 

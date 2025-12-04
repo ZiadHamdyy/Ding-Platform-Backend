@@ -3,6 +3,7 @@ import neo4j, { Driver } from 'neo4j-driver';
 import * as bcrypt from 'bcryptjs';
 import { get } from 'env-var';
 import * as dotenv from 'dotenv';
+import { seedPostsForUsers } from './post-seeder';
 
 // Load environment variables
 dotenv.config();
@@ -842,13 +843,16 @@ async function main() {
     // Create regular users and profiles
     await createUsersAndProfiles(100);
     
-    // Get all user IDs (including developers) for relationship creation
+    // Get all user IDs (including developers)
     const allUsers = await prisma.user.findMany({
       select: { id: true },
       orderBy: { createdAt: 'asc' },
     });
     const allUserIds = allUsers.map((u) => u.id);
-    
+
+    // Create posts for all users
+    await seedPostsForUsers(prisma, allUserIds);
+
     // Create relationships for regular users
     const regularSession = neo4jDriver.session();
     try {
