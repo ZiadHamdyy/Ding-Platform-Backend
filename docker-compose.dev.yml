@@ -122,23 +122,23 @@ services:
     command: sh -c "pnpm prisma generate && npx prisma studio --hostname 0.0.0.0 --port 5555"
 
   # Uncomment to run frontend with backend
-  # frontend:
-  #   container_name: ding-frontend-dev
-  #   build:
-  #     context: ../Ding-Platform-Frontend
-  #     dockerfile: Dockerfile.dev
-  #   restart: unless-stopped
-  #   ports:
-  #     - '5173:5173'
-  #   environment:
-  #     - VITE_API_URL=http://localhost:3000
-  #   volumes:
-  #     - ../Ding-Platform-Frontend:/app
-  #     - /app/node_modules
-  #   depends_on:
-  #     - backend
-  #   networks:
-  #     - ding-dev-network
+  frontend:
+    container_name: ding-frontend-dev
+    build:
+      context: ../Ding-Platform-Frontend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    ports:
+      - '5173:5173'
+    environment:
+      - VITE_API_URL=http://localhost:3000
+    volumes:
+      - ../Ding-Platform-Frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - ding-dev-network
 
 volumes:
   pgdata_dev:
