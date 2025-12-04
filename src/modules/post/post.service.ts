@@ -1,4 +1,4 @@
-import { Injectable, HttpStatus, ForbiddenException } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
 import { DatabaseService } from '../../configs/database/database.service';
 import { HelperService } from '../../common/utils/helper/helper.service';
 import { CloudinaryService } from '../../common/services/cloudinary/cloudinary.service';
@@ -403,7 +403,10 @@ export class PostService {
     }
 
     if (post.authorId !== userId) {
-      throw new ForbiddenException(ERROR_MESSAGES.POST_UNAUTHORIZED);
+      throw GenericHttpException.createLocalized(
+        ERROR_MESSAGES.POST_UNAUTHORIZED,
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     return post;

@@ -151,6 +151,7 @@ export const ERROR_MESSAGES = {
   COMMENT_CREATION_FAILED: 'Failed to create comment. Please try again',
   COMMENT_DELETE_FAILED: 'Failed to delete comment. Please try again',
   COMMENT_UNAUTHORIZED: 'You do not have permission to delete this comment',
+  COMMENT_NESTING_NOT_ALLOWED: 'Cannot reply to nested comments',
   CANNOT_REPLY_TO_SELF: 'You cannot reply to your own comment', // Optional rule
 
   // Like Errors
