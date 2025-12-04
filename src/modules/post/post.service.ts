@@ -9,6 +9,7 @@ import { CreatePostDto } from './dtos/create_post.dto';
 import { UpdatePostDto } from './dtos/update_post.dto';
 import { NotificationService } from '../notification/notification.service';
 import { CreateCommentDto } from './dtos/create_comment.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class PostService {
@@ -390,11 +391,8 @@ export class PostService {
 
     const existingLike = await this.prisma.like.findUnique({
       where: {
-        postId_userId: {
-          postId,
-          userId,
-        },
-      },
+        postId_userId: { postId, userId },
+      } as unknown as Prisma.LikeWhereUniqueInput,
     });
 
     if (existingLike) {

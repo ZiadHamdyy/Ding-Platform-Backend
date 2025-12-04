@@ -195,6 +195,9 @@ model Post {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  likeCount    Int       @default(0)
+  commentCount Int       @default(0)
+
   // Relations
   PostHistory  PostHistory[]
   PostMedia    PostMedia[]
@@ -209,40 +212,40 @@ model Post {
 
 model Like {
   id        String   @id @default(uuid())
-  postId    String
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  
   userId    String
+  postId    String?
+  commentId String?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
-  @@unique([postId, userId])
+  @@unique([userId, postId], map: "Like_userId_postId_key")
+  @@unique([userId, commentId], map: "Like_userId_commentId_key")
   @@index([postId])
-  @@index([userId])
+  @@index([commentId], map: "Like_commentId_idx")
 }
 
 model Comment {
-  id        String   @id @default(uuid())
-  content   String   @db.Text
-  
-  postId    String
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  
-  // Self-referencing relation for nested comments
-  parentId  String?
-  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies   Comment[] @relation("CommentReplies")
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String    @id @default(uuid())
+  content         String
+  postId          String
+  authorId        String
+  parentId        String?   @map("parentCommentId")
+  likeCount       Int       @default(0)
+  replyCount      Int       @default(0)
+  post            Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author          User      @relation(fields: [authorId], references: [id])
+  parent          Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade, map: "Comment_parentCommentId_fkey")
+  replies         Comment[] @relation("CommentReplies")
+  likes           Like[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
 
   @@index([postId])
   @@index([authorId])
-  @@index([parentId])
+  @@index([parentId], map: "Comment_parentCommentId_idx")
 }
 
 enum FriendshipStatus {

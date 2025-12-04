@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
+import { BullModule } from '@nestjs/bull';
 import { PinoLogger } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -21,6 +22,25 @@ import { PostModule } from './modules/post/post.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { HealthController } from './health.controller';
+import { LikeModule } from './modules/like/like.module';
+
+const redisUrl = process.env.REDIS_URL;
+let bullRedisOptions: { host: string; port: number } = {
+  host: 'localhost',
+  port: 6379,
+};
+
+if (redisUrl) {
+  try {
+    const url = new URL(redisUrl);
+    bullRedisOptions = {
+      host: url.hostname || 'localhost',
+      port: parseInt(url.port || '6379', 10),
+    };
+  } catch {
+    // Fallback to default localhost:6379 if URL parsing fails
+  }
+}
 
 @Module({
   imports: [
@@ -28,6 +48,9 @@ import { HealthController } from './health.controller';
       isGlobal: true,
     }),
     LoggerModule,
+    BullModule.forRoot({
+      redis: bullRedisOptions,
+    }),
     DatabaseModule,
     Neo4jModule,
     ContextModule,
@@ -40,6 +63,7 @@ import { HealthController } from './health.controller';
     PostModule,
     FeedModule,
     PrivacyModule,
+    LikeModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

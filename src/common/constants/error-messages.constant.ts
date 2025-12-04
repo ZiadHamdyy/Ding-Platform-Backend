@@ -147,6 +147,11 @@ export const ERROR_MESSAGES = {
   COMMENT_UNAUTHORIZED: 'You do not have permission to delete this comment',
   CANNOT_REPLY_TO_SELF: 'You cannot reply to your own comment', // Optional rule
 
+  // Like Errors
+  LIKE_NOT_FOUND: 'Like not found',
+  POST_ALREADY_LIKED: 'Post is already liked',
+  COMMENT_LIKES_NOT_SUPPORTED: 'Comment likes are not supported in the current schema',
+
 } as const;
 
 // Type for error message keys
