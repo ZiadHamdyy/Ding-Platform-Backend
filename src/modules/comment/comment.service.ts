@@ -53,15 +53,19 @@ export class CommentService {
       );
     }
 
-    let parentComment: { id: string; parentId: string | null } | null = null;
+    let parentComment: {
+      id: string;
+      parentId: string | null;
+      postId: string;
+    } | null = null;
 
     if (dto.parentCommentId) {
       parentComment = await this.prisma.comment.findUnique({
         where: { id: dto.parentCommentId },
-        select: { id: true, parentId: true },
+        select: { id: true, parentId: true, postId: true },
       });
 
-      if (!parentComment) {
+      if (!parentComment || parentComment.postId !== postId) {
         throw GenericHttpException.createLocalized(
           ERROR_MESSAGES.COMMENT_NOT_FOUND,
           HttpStatus.NOT_FOUND,
