@@ -111,6 +111,9 @@ export const ERROR_MESSAGES = {
   FRIEND_REQUEST_FAILED: 'Failed to send friend request. Please try again',
   ACCEPT_FRIEND_REQUEST_FAILED:
     'Failed to accept friend request. Please try again',
+
+  REJECT_FRIEND_REQUEST_FAILED:
+    'Failed to reject friend request. Please try again',
   REMOVE_FRIEND_FAILED: 'Failed to remove friend. Please try again',
   GET_FRIENDS_FAILED: 'Failed to retrieve friends. Please try again',
   GET_FRIEND_REQUESTS_FAILED:
@@ -129,17 +132,20 @@ export const ERROR_MESSAGES = {
   POST_UPDATE_FAILED: 'Failed to update post. Please try again',
   POST_DELETE_FAILED: 'Failed to delete post. Please try again',
   POST_UNAUTHORIZED: 'You do not have permission to modify this post',
-  POST_CONTENT_TOO_LONG: 'Post content exceeds maximum length of 10,000 characters',
+  POST_CONTENT_TOO_LONG:
+    'Post content exceeds maximum length of 10,000 characters',
   POST_TOO_MANY_IMAGES: 'You can upload a maximum of 5 images per post',
   POST_TOO_MANY_VIDEOS: 'You can upload a maximum of 2 videos per post',
-  POST_INVALID_IMAGE_TYPE: 'Invalid image type. Allowed types: JPEG, PNG, GIF, WebP',
-  POST_INVALID_VIDEO_TYPE: 'Invalid video type. Allowed types: MP4, WebM, QuickTime',
+  POST_INVALID_IMAGE_TYPE:
+    'Invalid image type. Allowed types: JPEG, PNG, GIF, WebP',
+  POST_INVALID_VIDEO_TYPE:
+    'Invalid video type. Allowed types: MP4, WebM, QuickTime',
   POST_IMAGE_TOO_LARGE: 'Image size exceeds maximum of 5MB',
   POST_VIDEO_TOO_LARGE: 'Video size exceeds maximum of 50MB',
   POST_MEDIA_UPLOAD_FAILED: 'Failed to upload media. Please try again',
   POST_ALREADY_DELETED: 'This post has already been deleted',
   POST_RESTORE_FAILED: 'Failed to restore post. Please try again',
-  
+
   // Comment Errors
   COMMENT_NOT_FOUND: 'Comment not found',
   COMMENT_CREATION_FAILED: 'Failed to create comment. Please try again',
@@ -150,8 +156,8 @@ export const ERROR_MESSAGES = {
   // Like Errors
   LIKE_NOT_FOUND: 'Like not found',
   POST_ALREADY_LIKED: 'Post is already liked',
-  COMMENT_LIKES_NOT_SUPPORTED: 'Comment likes are not supported in the current schema',
-
+  COMMENT_LIKES_NOT_SUPPORTED:
+    'Comment likes are not supported in the current schema',
 } as const;
 
 // Type for error message keys

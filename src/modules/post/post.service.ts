@@ -9,7 +9,7 @@ import { CreatePostDto } from './dtos/create_post.dto';
 import { UpdatePostDto } from './dtos/update_post.dto';
 import { NotificationService } from '../notification/notification.service';
 import { CreateCommentDto } from './dtos/create_comment.dto';
-import { Prisma } from '@prisma/client';
+import { PostPrivacy, Prisma } from '@prisma/client';
 
 @Injectable()
 export class PostService {
@@ -259,7 +259,7 @@ export class PostService {
         postId,
         updatedPost.content,
         updatedPost.mediaUrls,
-        updatedPost.privacy,
+        updatedPost.privacy as PostPrivacy,
         'UPDATED',
       );
 
@@ -302,7 +302,7 @@ export class PostService {
         postId,
         post.content,
         post.mediaUrls,
-        post.privacy,
+        post.privacy as PostPrivacy,
         'DELETED',
       );
 
@@ -372,7 +372,7 @@ export class PostService {
     postId: string,
     content: string,
     mediaUrls: string[],
-    privacy: any,
+    privacy: PostPrivacy,
     changeType: 'CREATED' | 'UPDATED' | 'DELETED' | 'RESTORED',
   ): Promise<void> {
     await this.prisma.postHistory.create({
@@ -585,5 +585,16 @@ export class PostService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async getPostsCount(profileId: string): Promise<{ postsCount: number }> {
+    const postsCount = await this.prisma.post.count({
+      where: {
+        authorId: profileId,
+        isDeleted: false,
+      },
+    });
+
+    return { postsCount };
   }
 }
