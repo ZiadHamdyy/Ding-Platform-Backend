@@ -740,6 +740,73 @@ async function createRelationships(session: any, totalUsers: number) {
   console.log(`✅ Created follow relationships\n`);
 }
 
+async function syncAllPostsToNeo4jFromPrisma() {
+  const session = neo4jDriver.session();
+
+  try {
+    console.log('🔄 Syncing posts from PostgreSQL to Neo4j...');
+
+    const batchSize = 1000;
+    let skip = 0;
+    let totalSynced = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const posts = await prisma.post.findMany({
+        select: {
+          id: true,
+          authorId: true,
+          createdAt: true,
+          isDeleted: true,
+        },
+        skip,
+        take: batchSize,
+        orderBy: { createdAt: 'asc' },
+      });
+
+      if (!posts.length) {
+        hasMore = false;
+        break;
+      }
+
+      const activePosts = posts.filter((p) => !p.isDeleted);
+
+      if (activePosts.length) {
+        await session.run(
+          `
+          UNWIND $posts as postData
+          MERGE (post:Post {id: postData.id})
+          SET post.createdAt = datetime(postData.createdAt)
+
+          WITH post, postData
+          MATCH (author:User {id: postData.authorId})
+          MERGE (author)-[:POSTED]->(post)
+        `,
+          {
+            posts: activePosts.map((p) => ({
+              id: p.id,
+              authorId: p.authorId,
+              createdAt: p.createdAt.toISOString(),
+            })),
+          },
+        );
+
+        totalSynced += activePosts.length;
+        console.log(`  ✅ Synced ${totalSynced} posts into Neo4j so far...`);
+      }
+
+      skip += batchSize;
+    }
+
+    console.log(`✨ Finished syncing ${totalSynced} posts into Neo4j.\n`);
+  } catch (error) {
+    console.error('❌ Error syncing posts to Neo4j:', error);
+    throw error;
+  } finally {
+    await session.close();
+  }
+}
+
 async function clearNeo4j() {
   const session = neo4jDriver.session();
   try {
@@ -852,6 +919,11 @@ async function main() {
 
     // Create posts for all users
     await seedPostsForUsers(prisma, allUserIds);
+
+    // Sync all posts into Neo4j graph
+    if (neo4jConnected) {
+      await syncAllPostsToNeo4jFromPrisma();
+    }
 
     // Create relationships for regular users
     const regularSession = neo4jDriver.session();

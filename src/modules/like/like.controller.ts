@@ -13,7 +13,6 @@ export class LikeController {
     @Param('postId') postId: string,
     @currentUser('id') userId: string,
   ) {
-    console.log("userId", userId);
     return this.likeService.likePost(userId, postId);
   }
 

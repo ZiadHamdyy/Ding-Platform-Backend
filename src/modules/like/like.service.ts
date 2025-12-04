@@ -20,47 +20,7 @@ export class LikeService {
     @InjectQueue('graph-sync') private graphQueue: Queue,
   ) {}
 
-  /**
-   * Create or update the LIKE relationship in Neo4j between a user and a post.
-   */
-  private async syncLikeInGraph(userId: string, postId: string): Promise<void> {
-    const session = this.neo4j.getSession();
-    try {
-      await session.run(
-        `
-        MERGE (u:User {userId: $userId})
-        MERGE (p:Post {postId: $postId})
-        MERGE (u)-[r:LIKES_POST]->(p)
-        SET r.createdAt = coalesce(r.createdAt, datetime()),
-            r.updatedAt = datetime()
-        `,
-        { userId, postId },
-      );
-    } finally {
-      await session.close();
-    }
-  }
-
-  /**
-   * Remove the LIKE relationship in Neo4j between a user and a post.
-   */
-  private async removeLikeFromGraph(
-    userId: string,
-    postId: string,
-  ): Promise<void> {
-    const session = this.neo4j.getSession();
-    try {
-      await session.run(
-        `
-        MATCH (u:User {userId: $userId})-[r:LIKES_POST]->(p:Post {postId: $postId})
-        DELETE r
-        `,
-        { userId, postId },
-      );
-    } finally {
-      await session.close();
-    }
-  }
+  // Direct Neo4j sync helpers are no longer needed; we rely on the graph-sync queue.
 
   async likePost(userId: string, postId: string) {
     // Check if post exists
@@ -109,16 +69,17 @@ export class LikeService {
       where: { postId },
     });
 
-    // Update Neo4j graph
-    await this.syncLikeInGraph(userId, postId);
-
-    // Async: enqueue background sync job if additional processing is needed
-    await this.graphQueue.add('sync-like', {
-      userId,
-      postId,
-      action: 'LIKE',
-      timestamp: new Date(),
-    });
+    // Async: enqueue background sync job (Neo4j is updated in the graph-sync processor)
+    try {
+      await this.graphQueue.add('sync-like', {
+        userId,
+        postId,
+        action: 'LIKE',
+        timestamp: new Date(),
+      });
+    } catch (queueError) {
+      console.error('Failed to enqueue like for graph sync', queueError);
+    }
 
     return {
       ...result,
@@ -146,15 +107,17 @@ export class LikeService {
       // We intentionally don't maintain a manual likeCount column here.
     });
 
-    // Update Neo4j graph
-    await this.removeLikeFromGraph(userId, postId);
-
-    // Async: enqueue background sync job if additional processing is needed
-    await this.graphQueue.add('sync-like', {
-      userId,
-      postId,
-      action: 'UNLIKE',
-    });
+    // Async: enqueue background sync job (Neo4j is updated in the graph-sync processor)
+    try {
+      await this.graphQueue.add('sync-like', {
+        userId,
+        postId,
+        action: 'UNLIKE',
+        timestamp: new Date(),
+      });
+    } catch (queueError) {
+      console.error('Failed to enqueue unlike for graph sync', queueError);
+    }
 
     return { success: true };
   }

@@ -21,6 +21,12 @@ export class FeedItemDto {
 
   @Expose()
   privacy: string;
+
+  @Expose()
+  score?: number;
+
+  @Expose()
+  hasLiked?: boolean;
 }
 
 export class PaginationDto {

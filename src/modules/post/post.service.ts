@@ -10,6 +10,8 @@ import { UpdatePostDto } from './dtos/update_post.dto';
 import { NotificationService } from '../notification/notification.service';
 import { CreateCommentDto } from './dtos/create_comment.dto';
 import { Post, PostPrivacy, Prisma } from '@prisma/client';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 
 @Injectable()
 export class PostService {
@@ -18,6 +20,7 @@ export class PostService {
     private readonly helperService: HelperService,
     private readonly cloudinaryService: CloudinaryService,
     private readonly notificationService: NotificationService,
+    @InjectQueue('graph-sync') private readonly graphQueue: Queue,
   ) {}
 
   async getAllPosts(userId?: string, page = 1, limit = 20) {
@@ -198,6 +201,18 @@ export class PostService {
         });
       }
 
+      // Enqueue graph sync for post creation
+      try {
+        await this.graphQueue.add('sync-post', {
+          postId: newPost.id,
+          authorId: newPost.authorId,
+          createdAt: newPost.createdAt,
+          action: 'CREATE',
+        });
+      } catch (queueError) {
+        console.error('Failed to enqueue post creation for graph sync', queueError);
+      }
+
       // Create post history
       await this.createPostHistory(
         newPost.id,
@@ -257,6 +272,18 @@ export class PostService {
         }
       }
 
+      // Enqueue graph sync for post update (optional, mainly for metadata)
+      try {
+        await this.graphQueue.add('sync-post', {
+          postId,
+          authorId: userId,
+          action: 'UPDATE',
+          updatedAt: new Date(),
+        });
+      } catch (queueError) {
+        console.error('Failed to enqueue post update for graph sync', queueError);
+      }
+
       // Create history record
       await this.createPostHistory(
         postId,
@@ -299,6 +326,17 @@ export class PostService {
           deletedAt: new Date(),
         },
       });
+
+      // Enqueue graph sync for post deletion
+      try {
+        await this.graphQueue.add('sync-post', {
+          postId,
+          authorId: userId,
+          action: 'DELETE',
+        });
+      } catch (queueError) {
+        console.error('Failed to enqueue post deletion for graph sync', queueError);
+      }
 
       // Create history record
       await this.createPostHistory(
@@ -461,6 +499,18 @@ export class PostService {
       },
     });
 
+    // Enqueue graph sync for comment creation
+    try {
+      await this.graphQueue.add('sync-comment', {
+        userId,
+        postId,
+        commentId: comment.id,
+        timestamp: comment.createdAt,
+      });
+    } catch (queueError) {
+      console.error('Failed to enqueue comment creation for graph sync', queueError);
+    }
+
     // Notify post author
     await this.notificationService.notifyPostComment(
       userId,
@@ -494,6 +544,19 @@ export class PostService {
     await this.prisma.comment.delete({
       where: { id: commentId },
     });
+
+    // Enqueue graph sync for comment deletion
+    try {
+      await this.graphQueue.add('sync-comment', {
+        userId,
+        postId: comment.postId,
+        commentId: comment.id,
+        timestamp: new Date(),
+        action: 'DELETE',
+      });
+    } catch (queueError) {
+      console.error('Failed to enqueue comment deletion for graph sync', queueError);
+    }
 
     return { success: true };
   }
