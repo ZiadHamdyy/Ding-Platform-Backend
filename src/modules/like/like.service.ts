@@ -20,6 +20,48 @@ export class LikeService {
     @InjectQueue('graph-sync') private graphQueue: Queue,
   ) {}
 
+  /**
+   * Create or update the LIKE relationship in Neo4j between a user and a post.
+   */
+  private async syncLikeInGraph(userId: string, postId: string): Promise<void> {
+    const session = this.neo4j.getSession();
+    try {
+      await session.run(
+        `
+        MERGE (u:User {userId: $userId})
+        MERGE (p:Post {postId: $postId})
+        MERGE (u)-[r:LIKES_POST]->(p)
+        SET r.createdAt = coalesce(r.createdAt, datetime()),
+            r.updatedAt = datetime()
+        `,
+        { userId, postId },
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Remove the LIKE relationship in Neo4j between a user and a post.
+   */
+  private async removeLikeFromGraph(
+    userId: string,
+    postId: string,
+  ): Promise<void> {
+    const session = this.neo4j.getSession();
+    try {
+      await session.run(
+        `
+        MATCH (u:User {userId: $userId})-[r:LIKES_POST]->(p:Post {postId: $postId})
+        DELETE r
+        `,
+        { userId, postId },
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
   async likePost(userId: string, postId: string) {
     // Check if post exists
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
@@ -32,8 +74,8 @@ export class LikeService {
 
     // Check if already liked (uses unique index on (userId, postId) in DB)
     const existingLike = await this.prisma.like.findUnique({
-      where: { 
-        postId_userId: { postId, userId } 
+      where: {
+        userId_postId: { userId, postId },
       } as unknown as Prisma.LikeWhereUniqueInput,
     });
 
@@ -44,7 +86,7 @@ export class LikeService {
       );
     }
 
-    // Transaction: Create like + increment count
+    // Transaction: Create like in relational DB
     const result = await this.prisma.$transaction(async (tx) => {
       const like = await tx.like.create({
         data: { userId, postId },
@@ -62,7 +104,15 @@ export class LikeService {
       return like;
     });
 
-    // Async: Update Neo4j graph
+    // Get updated likes count for the post
+    const likesCount = await this.prisma.like.count({
+      where: { postId },
+    });
+
+    // Update Neo4j graph
+    await this.syncLikeInGraph(userId, postId);
+
+    // Async: enqueue background sync job if additional processing is needed
     await this.graphQueue.add('sync-like', {
       userId,
       postId,
@@ -70,13 +120,16 @@ export class LikeService {
       timestamp: new Date(),
     });
 
-    return result;
+    return {
+      ...result,
+      likesCount,
+    };
   }
 
   async unlikePost(userId: string, postId: string) {
     const like = await this.prisma.like.findUnique({
-      where: { 
-        postId_userId: { postId, userId } 
+      where: {
+        userId_postId: { userId, postId },
       } as unknown as Prisma.LikeWhereUniqueInput,
     });
 
@@ -93,7 +146,10 @@ export class LikeService {
       // We intentionally don't maintain a manual likeCount column here.
     });
 
-    // Async: Update Neo4j graph
+    // Update Neo4j graph
+    await this.removeLikeFromGraph(userId, postId);
+
+    // Async: enqueue background sync job if additional processing is needed
     await this.graphQueue.add('sync-like', {
       userId,
       postId,
@@ -156,8 +212,8 @@ export class LikeService {
   async hasUserLiked(userId: string, postId?: string, commentId?: string) {
     if (postId) {
       const like = await this.prisma.like.findUnique({
-        where: { 
-          postId_userId: { postId, userId } 
+        where: {
+          userId_postId: { userId, postId },
         } as unknown as Prisma.LikeWhereUniqueInput,
       });
       return !!like;

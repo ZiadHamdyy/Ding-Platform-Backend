@@ -41,9 +41,8 @@ export class PostController {
   @Get('/:id')
   async getPostById(
     @Param('id') postId: string,
-    @currentUser('id') userId?: string,
   ) {
-    return this.postService.getPostById(postId, userId);
+    return this.postService.getPostById(postId);
   }
 
   @Post('/create')

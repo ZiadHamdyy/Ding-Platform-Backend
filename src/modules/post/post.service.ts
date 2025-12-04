@@ -9,7 +9,7 @@ import { CreatePostDto } from './dtos/create_post.dto';
 import { UpdatePostDto } from './dtos/update_post.dto';
 import { NotificationService } from '../notification/notification.service';
 import { CreateCommentDto } from './dtos/create_comment.dto';
-import { PostPrivacy, Prisma } from '@prisma/client';
+import { Post, PostPrivacy, Prisma } from '@prisma/client';
 
 @Injectable()
 export class PostService {
@@ -59,7 +59,7 @@ export class PostService {
     return posts;
   }
 
-  async getPostById(postId: string, userId?: string) {
+  async getPostById(postId: string): Promise<Post> {
     const post = await this.prisma.post.findFirst({
       where: {
         id: postId,
