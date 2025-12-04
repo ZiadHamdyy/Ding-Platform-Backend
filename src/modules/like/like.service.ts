@@ -20,6 +20,8 @@ export class LikeService {
     @InjectQueue('graph-sync') private graphQueue: Queue,
   ) {}
 
+  // Direct Neo4j sync helpers are no longer needed; we rely on the graph-sync queue.
+
   async likePost(userId: string, postId: string) {
     // Check if post exists
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
@@ -32,8 +34,8 @@ export class LikeService {
 
     // Check if already liked (uses unique index on (userId, postId) in DB)
     const existingLike = await this.prisma.like.findUnique({
-      where: { 
-        postId_userId: { postId, userId } 
+      where: {
+        userId_postId: { userId, postId },
       } as unknown as Prisma.LikeWhereUniqueInput,
     });
 
@@ -44,7 +46,7 @@ export class LikeService {
       );
     }
 
-    // Transaction: Create like + increment count
+    // Transaction: Create like in relational DB
     const result = await this.prisma.$transaction(async (tx) => {
       const like = await tx.like.create({
         data: { userId, postId },
@@ -62,21 +64,33 @@ export class LikeService {
       return like;
     });
 
-    // Async: Update Neo4j graph
-    await this.graphQueue.add('sync-like', {
-      userId,
-      postId,
-      action: 'LIKE',
-      timestamp: new Date(),
+    // Get updated likes count for the post
+    const likesCount = await this.prisma.like.count({
+      where: { postId },
     });
 
-    return result;
+    // Async: enqueue background sync job (Neo4j is updated in the graph-sync processor)
+    try {
+      await this.graphQueue.add('sync-like', {
+        userId,
+        postId,
+        action: 'LIKE',
+        timestamp: new Date(),
+      });
+    } catch (queueError) {
+      console.error('Failed to enqueue like for graph sync', queueError);
+    }
+
+    return {
+      ...result,
+      likesCount,
+    };
   }
 
   async unlikePost(userId: string, postId: string) {
     const like = await this.prisma.like.findUnique({
-      where: { 
-        postId_userId: { postId, userId } 
+      where: {
+        userId_postId: { userId, postId },
       } as unknown as Prisma.LikeWhereUniqueInput,
     });
 
@@ -93,12 +107,17 @@ export class LikeService {
       // We intentionally don't maintain a manual likeCount column here.
     });
 
-    // Async: Update Neo4j graph
-    await this.graphQueue.add('sync-like', {
-      userId,
-      postId,
-      action: 'UNLIKE',
-    });
+    // Async: enqueue background sync job (Neo4j is updated in the graph-sync processor)
+    try {
+      await this.graphQueue.add('sync-like', {
+        userId,
+        postId,
+        action: 'UNLIKE',
+        timestamp: new Date(),
+      });
+    } catch (queueError) {
+      console.error('Failed to enqueue unlike for graph sync', queueError);
+    }
 
     return { success: true };
   }
@@ -156,8 +175,8 @@ export class LikeService {
   async hasUserLiked(userId: string, postId?: string, commentId?: string) {
     if (postId) {
       const like = await this.prisma.like.findUnique({
-        where: { 
-          postId_userId: { postId, userId } 
+        where: {
+          userId_postId: { userId, postId },
         } as unknown as Prisma.LikeWhereUniqueInput,
       });
       return !!like;

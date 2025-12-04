@@ -110,6 +110,13 @@ pnpm run start:dev
 - **Development**: http://localhost:3000/api/docs
 - **Production**: https://your-app.onrender.com/api/docs
 
+### Comments API Quick Reference
+- `POST /comments/posts/:postId` — create a top-level comment (auth required, supports `parentCommentId` to reply)
+- `GET /comments/posts/:postId` — list top-level comments with pagination and `sort=top|recent`
+- `GET /comments/:commentId/replies` — list replies for a specific comment
+- `PATCH /comments/:commentId` — update own comment content (auth required)
+- `DELETE /comments/:commentId` — soft-delete own comment and update graph sync (auth required)
+
 ### Project Documentation
 - [ENV_GUIDE.md](./ENV_GUIDE.md) - Environment variables
 - [FEED_DOCUMENTATION.md](./FEED_DOCUMENTATION.md) - Feed system

@@ -1,28 +1,46 @@
-import { Controller, Query, Post, Delete, Param, Get, Request } from '@nestjs/common';
+import { Controller, Query, Post, Delete, Param, Get, UseGuards } from '@nestjs/common';
 import { LikeService } from './like.service';
+import { JwtAuthenticationGuard } from '../../common/guards/strategy.guards/jwt.guard';
+import { currentUser } from '../../common/decorators/currentUser.decorator';
 
 @Controller('likes')
 export class LikeController {
   constructor(private likeService: LikeService) {}
 
   @Post('posts/:postId')
-  likePost(@Param('postId') postId: string, @Request() req) {
-    return this.likeService.likePost(req.user.id, postId);
+  @UseGuards(JwtAuthenticationGuard)
+  likePost(
+    @Param('postId') postId: string,
+    @currentUser('id') userId: string,
+  ) {
+    return this.likeService.likePost(userId, postId);
   }
 
   @Delete('posts/:postId')
-  unlikePost(@Param('postId') postId: string, @Request() req) {
-    return this.likeService.unlikePost(req.user.id, postId);
+  @UseGuards(JwtAuthenticationGuard)
+  unlikePost(
+    @Param('postId') postId: string,
+    @currentUser('id') userId: string,
+  ) {
+    return this.likeService.unlikePost(userId, postId);
   }
 
   @Post('comments/:commentId')
-  likeComment(@Param('commentId') commentId: string, @Request() req) {
-    return this.likeService.likeComment(req.user.id, commentId);
+  @UseGuards(JwtAuthenticationGuard)
+  likeComment(
+    @Param('commentId') commentId: string,
+    @currentUser('id') userId: string,
+  ) {
+    return this.likeService.likeComment(userId, commentId);
   }
 
   @Delete('comments/:commentId')
-  unlikeComment(@Param('commentId') commentId: string, @Request() req) {
-    return this.likeService.unlikeComment(req.user.id, commentId);
+  @UseGuards(JwtAuthenticationGuard)
+  unlikeComment(
+    @Param('commentId') commentId: string,
+    @currentUser('id') userId: string,
+  ) {
+    return this.likeService.unlikeComment(userId, commentId);
   }
 
   @Get('posts/:postId')
