@@ -29,21 +29,35 @@ import { CommentModule } from './modules/comment/comment.module';
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
-let bullRedisOptions: { host: string; port: number } = {
+let bullRedisOptions: {
+  host: string;
+  port: number;
+  tls?: { rejectUnauthorized: boolean };
+} = {
   host: 'localhost',
   port: 6379,
 };
 
 try {
   const parsed = new URL(redisUrl);
-  bullRedisOptions = {
-    host: parsed.hostname || 'localhost',
-    port: parsed.port ? parseInt(parsed.port, 10) : 6379,
-  };
+  const host = parsed.hostname || 'localhost';
+  const port = parsed.port ? parseInt(parsed.port, 10) : 6379;
+
+  bullRedisOptions =
+    process.env.VERCEL === '1'
+      ? {
+          host,
+          port,
+          // Vercel Redis requires TLS but often presents a self-signed cert
+          tls: { rejectUnauthorized: false },
+        }
+      : {
+          host,
+          port,
+        };
 } catch {
   // Keep default localhost:6379 if parsing fails
 }
-
 @Module({
   imports: [
     ConfigModule.forRoot({
