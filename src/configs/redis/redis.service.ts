@@ -18,7 +18,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
     try {
       this.client = createClient({
-        url: redisUrl || 'redis://localhost:6379',
+        url: redisUrl,
       });
 
       this.client.on('error', (err) => {
@@ -28,6 +28,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
       this.client.on('connect', () => {
         console.log('✅ Redis connected successfully');
+        console.log('redisUrl', redisUrl);
         this.isConnected = true;
       });
 
