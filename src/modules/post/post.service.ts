@@ -13,6 +13,16 @@ import { Post, PostPrivacy, Prisma } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 
+type SimplePostResponse = {
+  id: string;
+  author: string;
+  time: string;
+  content: string;
+  likes: number;
+  comments: number;
+  image: string | null;
+};
+
 @Injectable()
 export class PostService {
   constructor(
@@ -23,7 +33,7 @@ export class PostService {
     @InjectQueue('graph-sync') private readonly graphQueue: Queue,
   ) {}
 
-  async getAllPosts(userId?: string, page = 1, limit = 20) {
+  async getAllPosts(userId?: string, page = 1, limit = 20): Promise<SimplePostResponse[]> {
     const skip = (page - 1) * limit;
     const posts = await this.prisma.post.findMany({
       where: {
@@ -59,48 +69,18 @@ export class PostService {
       );
     }
 
-    return posts;
+    return posts.map((post) => this.mapPostToSimple(post));
   }
 
-  async getPostById(postId: string): Promise<Post> {
-    const post = await this.prisma.post.findFirst({
-      where: {
-        id: postId,
-        isDeleted: false,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            image: true,
-          },
-        },
-        PostMedia: true,
-        PostAudience: true,
-        _count: {
-          select: {
-            Likes: true,
-            Comments: true,
-          },
-        },
-      },
-    });
-
-    if (!post) {
-      throw GenericHttpException.createLocalized(
-        ERROR_MESSAGES.POST_NOT_FOUND,
-        HttpStatus.NOT_FOUND,
-      );
-    }
-
-    return post;
+  async getPostById(postId: string): Promise<SimplePostResponse> {
+    const post = await this.getPostWithRelations(postId);
+    return this.mapPostToSimple(post);
   }
 
   async createPost(
     data: CreatePostDto,
     files?: Record<string, Express.Multer.File[]>,
-  ) {
+  ): Promise<SimplePostResponse> {
     try {
       // Validate content length
       this.validatePostContent(data.content);
@@ -235,7 +215,7 @@ export class PostService {
     }
   }
 
-  async updatePost(postId: string, userId: string, data: UpdatePostDto) {
+  async updatePost(postId: string, userId: string, data: UpdatePostDto): Promise<SimplePostResponse> {
     try {
       // Check post exists and user owns it
       await this.checkPostOwnership(postId, userId);
@@ -360,6 +340,56 @@ export class PostService {
     }
   }
 
+  private async getPostWithRelations(postId: string) {
+    const post = await this.prisma.post.findFirst({
+      where: {
+        id: postId,
+        isDeleted: false,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          },
+        },
+        PostMedia: true,
+        PostAudience: true,
+        _count: {
+          select: {
+            Likes: true,
+            Comments: true,
+          },
+        },
+      },
+    });
+
+    if (!post) {
+      throw GenericHttpException.createLocalized(
+        ERROR_MESSAGES.POST_NOT_FOUND,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    return post;
+  }
+
+  private mapPostToSimple(post: any): SimplePostResponse {
+    const createdAt =
+      post?.createdAt instanceof Date ? post.createdAt : new Date(post?.createdAt);
+
+    return {
+      id: post.id,
+      author: post.author?.name ?? '',
+      time: createdAt.toISOString(),
+      content: post.content,
+      likes: post._count?.Likes ?? 0,
+      comments: post._count?.Comments ?? 0,
+      image: post.mediaUrls?.[0] ?? post.PostMedia?.[0]?.url ?? null,
+    };
+  }
+
   // Validation methods
   private validatePostContent(content: string): void {
     if (content.length > POST_CONSTANTS.VALIDATION.MAX_CONTENT_LENGTH) {
@@ -431,7 +461,7 @@ export class PostService {
   }
 
   async toggleLike(postId: string, userId: string) {
-    const post = await this.getPostById(postId);
+    const post = await this.getPostWithRelations(postId);
 
     const existingLike = await this.prisma.like.findUnique({
       where: {
@@ -462,7 +492,7 @@ export class PostService {
   }
 
   async createComment(postId: string, userId: string, dto: CreateCommentDto) {
-    const post = await this.getPostById(postId);
+    const post = await this.getPostWithRelations(postId);
 
     if (dto.parentId) {
       const parentComment = await this.prisma.comment.findUnique({
