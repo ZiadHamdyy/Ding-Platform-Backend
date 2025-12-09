@@ -36,6 +36,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       console.error('Failed to connect to Redis:', error);
       this.isConnected = false;
     }
+
   }
 
   async onModuleDestroy() {

@@ -5,39 +5,22 @@ export class FeedItemDto {
   id: string;
 
   @Expose()
+  author: string;
+
+  @Expose()
+  time: string;
+
+  @Expose()
   content: string;
 
   @Expose()
-  authorId: string;
+  likes: number;
 
   @Expose()
-  authorName?: string;
+  comments: number;
 
   @Expose()
-  createdAt: Date;
-
-  @Expose()
-  mediaUrls: string[];
-
-  @Expose()
-  privacy: string;
-
-  @Expose()
-  score?: number;
-
-  @Expose()
-  hasLiked?: boolean;
-}
-
-export class PaginationDto {
-  @Expose()
-  page: number;
-
-  @Expose()
-  limit: number;
-
-  @Expose()
-  total: number;
+  image: string | null;
 }
 
 export class FeedResponseDto {
@@ -46,6 +29,14 @@ export class FeedResponseDto {
   data: FeedItemDto[];
 
   @Expose()
-  @Type(() => PaginationDto)
-  meta: PaginationDto;
+  total: number;
+
+  @Expose()
+  page: number;
+
+  @Expose()
+  limit: number;
+
+  @Expose()
+  totalPages: number;
 }
