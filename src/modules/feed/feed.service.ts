@@ -37,37 +37,25 @@ export class FeedService {
 
     const scoreMap = new Map(scoredPostIds.map((s) => [s.postId, s.score as number]));
 
-    // Check like status in bulk
-    const likes = await this.prisma.like.findMany({
-      where: {
-        userId,
-        postId: { in: posts.map((p) => p.id) },
-      },
-      select: {
-        postId: true,
-      },
-    });
-    const likedSet = new Set(likes.map((l) => l.postId));
-
-    const items: FeedItemDto[] = posts.map((p) => ({
+    const items = posts.map((p) => ({
       id: p.id,
+      author: p.author?.name ?? '',
+      time: p.createdAt.toISOString(),
       content: p.content,
-      authorId: p.authorId,
-      authorName: p.author?.name ?? undefined,
-      createdAt: p.createdAt,
-      mediaUrls: p.mediaUrls,
-      privacy: p.privacy,
+      likes: p._count?.Likes ?? 0,
+      comments: p._count?.Comments ?? 0,
+      image: p.mediaUrls?.[0] ?? null,
       score: scoreMap.get(p.id),
-      hasLiked: likedSet.has(p.id),
     }));
 
     items.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
     const start = (page - 1) * limit;
     const paginated = items.slice(start, start + limit);
+    const data: FeedItemDto[] = paginated.map(({ score, ...rest }) => rest);
 
     return {
-      data: paginated,
+      data,
       total: items.length,
       page,
       limit,
@@ -118,16 +106,24 @@ export class FeedService {
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
-        include: { author: true },
+        include: {
+          author: true,
+          _count: {
+            select: {
+              Likes: true,
+              Comments: true,
+            },
+          },
+        },
       });
       const data: FeedItemDto[] = posts.map((p) => ({
         id: p.id,
+        author: p.author?.name ?? '',
+        time: p.createdAt.toISOString(),
         content: p.content,
-        authorId: p.authorId,
-        authorName: p.author?.name ?? undefined,
-        createdAt: p.createdAt,
-        mediaUrls: p.mediaUrls,
-        privacy: p.privacy,
+        likes: p._count?.Likes ?? 0,
+        comments: p._count?.Comments ?? 0,
+        image: p.mediaUrls?.[0] ?? null,
       }));
       const total = await this.prisma.post.count({
         where: {

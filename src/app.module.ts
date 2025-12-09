@@ -6,6 +6,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './configs/database/database.module';
+import { RedisModule } from './configs/redis/redis.module';
 import { Neo4jModule } from './configs/neo4j/neo4j.module';
 import { LoggerModule } from './common/application/logger/logger.module';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
@@ -26,22 +27,21 @@ import { LikeModule } from './modules/like/like.module';
 import { GraphSyncModule } from './modules/graph/graph-sync.module';
 import { CommentModule } from './modules/comment/comment.module';
 
-const redisUrl = process.env.REDIS_URL;
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+
 let bullRedisOptions: { host: string; port: number } = {
   host: 'localhost',
   port: 6379,
 };
 
-if (redisUrl) {
-  try {
-    const url = new URL(redisUrl);
-    bullRedisOptions = {
-      host: url.hostname || 'localhost',
-      port: parseInt(url.port || '6379', 10),
-    };
-  } catch {
-    // Fallback to default localhost:6379 if URL parsing fails
-  }
+try {
+  const parsed = new URL(redisUrl);
+  bullRedisOptions = {
+    host: parsed.hostname || 'localhost',
+    port: parsed.port ? parseInt(parsed.port, 10) : 6379,
+  };
+} catch {
+  // Keep default localhost:6379 if parsing fails
 }
 
 @Module({
@@ -50,6 +50,7 @@ if (redisUrl) {
       isGlobal: true,
     }),
     LoggerModule,
+    RedisModule,
     BullModule.forRoot({
       redis: bullRedisOptions,
     }),

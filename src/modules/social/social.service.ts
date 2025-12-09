@@ -733,7 +733,7 @@ export class SocialService {
     offset = 0,
     limit = 10,
   ): Promise<{
-    data: (Profile & { user: User })[];
+    data: (Profile & { user: User } & { isFollowedBack: boolean })[];
     meta: {
       limit: number;
       offset: number;
@@ -818,6 +818,20 @@ export class SocialService {
       
       const followerIds = result.records.map((r) => r.get('userId'));
 
+      // Identify which of the followers the user also follows back
+      const followBackResult =
+        followerIds.length > 0
+          ? await session.run(
+              `MATCH (u:User {userId: $userId})-[:FOLLOWS]->(follower:User)
+         WHERE follower.userId IN $followerIds
+         RETURN follower.userId as userId`,
+              { userId, followerIds },
+            )
+          : null;
+      const followedBackIds =
+        followBackResult?.records.map((r) => r.get('userId')) ?? [];
+      const followedBackSet = new Set(followedBackIds);
+
       // Batch fetch profile details from PostgreSQL with all data
       const profiles = await this.prisma.profile.findMany({
         where: { userId: { in: followerIds } },
@@ -831,8 +845,22 @@ export class SocialService {
 
       // Return full profile data, preserving order from Neo4j
       const followers = followerIds
-        .map((id) => profileMap.get(id))
-        .filter((p): p is Profile & { user: User } => p !== undefined);
+        .map((id) => {
+          const profile = profileMap.get(id);
+          if (!profile) {
+            return undefined;
+          }
+          return {
+            ...profile,
+            isFollowedBack: followedBackSet.has(id),
+          };
+        })
+        .filter(
+          (
+            p,
+          ): p is Profile & { user: User } & { isFollowedBack: boolean } =>
+            p !== undefined,
+        );
 
       // Calculate pagination metadata
       const hasMore = offsetInt + limitInt < total;

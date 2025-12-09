@@ -20,6 +20,10 @@ export class FriendResponse {
   @Expose()
   bio: string | null;
 
+  // Indicates if the current user follows this person back (followers list)
+  @Expose()
+  isFollowedBack?: boolean;
+
   @Expose()
   @Type(() => UserBasicInfo)
   user: UserBasicInfo;
