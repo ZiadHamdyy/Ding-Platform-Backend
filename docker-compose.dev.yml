@@ -29,6 +29,7 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - NEO4J_URI=${NEO4J_URI}
       - NEO4J_AUTH=${NEO4J_AUTH}
+      - REDIS_URL=${REDIS_URL}
     volumes:
       - .:/app
       - /app/node_modules
@@ -37,6 +38,8 @@ services:
         condition: service_started
       neo4j:
         condition: service_started
+      redis:
+        condition: service_healthy
     networks:
       - ding-dev-network
     stdin_open: true
@@ -54,6 +57,27 @@ services:
     volumes:
       - ../Ding-Platform-Frontend:/app
       - /app/node_modules
+
+  
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: ding-redis-dev
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data_dev:/data
+    networks:
+      - ding-dev-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+  
+  # Neo4j Graph Database
   neo4j:
     image: neo4j:latest
     container_name: ding-neo4j-dev
@@ -95,6 +119,7 @@ services:
 volumes:
   pgdata_dev:
   neo4j_data_dev:
+  redis_data_dev:
 
 networks:
   ding-dev-network:
